@@ -203,7 +203,7 @@ plot1<-survfit2(Surv(time, status) ~ hardening, data = control) %>%
   )+
   ylim(0,1)+
   my_theme+
-  geom_text(x=10, y=0.2, label="Cox PH p=0.70")+
+  geom_text(x=10, y=0.2, label="Cox PH p=0.99")+
   theme(legend.position="none")
 ```
 
@@ -218,8 +218,8 @@ plot2<-survfit2(Surv(time, status) ~ hardening, data = stress) %>%
   )+
   ylim(0,1)+
   my_theme+
-  geom_text(x=10, y=0.2, label="Cox PH p=0.001")+
-  geom_text(x=10, y=0.15, label="Temp vs control p<0.001")+
+  geom_text(x=10, y=0.2, label="Cox PH p=0.028")+
+  geom_text(x=10, y=0.15, label="Temp vs control p=0.002")+
   theme(legend.position="right")
 ```
 
