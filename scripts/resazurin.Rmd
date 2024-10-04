@@ -1,0 +1,404 @@
+---
+title: 10K seed resazurin metabolic rate analysis
+author: "AS Huffmyer"
+date: '2024'
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+  pdf_document:
+    keep_tex: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+# Set up 
+
+Set up workspace, set options, and load required packages.    
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+Load libraries. 
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(cowplot)
+library(lme4)
+library(lmerTest)
+library(car)
+library(effects)
+library(emmeans)
+```
+
+# Load data 
+
+```{r}
+#read in files
+data <- read_csv("data/resazurin/resazurin_data.csv")
+
+data<-data%>%
+  pivot_longer(names_to="time", values_to="fluorescence", cols=`0`:`4`)%>%
+  mutate(time=as.numeric(time))
+```
+
+Read in survival data 
+```{r}
+surv<-read_excel("data/survival/survival_resazurin.xlsx")
+
+surv<-surv%>%
+  pivot_longer(names_to="time", values_to="status", cols=`0`:`24`)%>%
+  mutate(time=as.numeric(time))%>%
+  rename(date=date.resazurin, sample=oyster)%>%
+  mutate(sample=as.character(sample))
+```
+
+Combine data
+```{r}
+data<-left_join(data, surv)
+```
+
+Add in final mortality status
+```{r}
+final<-surv%>%
+  filter(time==24)%>%
+  rename(final.mortality=status)%>%
+  select(!time)
+
+data<-left_join(data, final)
+```
+
+We now have resazurin and survival data in the data frame.  
+
+```{r}
+data<-data%>%
+  mutate(final.mortality = case_when(
+    final.mortality == 0 ~ "alive",
+    final.mortality == 1 ~ "dead",
+    TRUE ~ as.character(final.mortality)  # To handle any other values
+  ))
+```
+
+# Data preparation 
+
+Plot the data. 
+
+```{r}
+data%>%
+  ggplot(aes(x=time, y=fluorescence, colour=temperature, group=sample))+
+  facet_wrap(~bag*date)+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+Calculate fluorescence at each time point normalized to the starting value at time 0. 
+
+```{r}
+data<-data%>%
+  group_by(date, bag, sample)%>%
+  arrange(date, bag, sample)%>%
+  mutate(fluorescence.norm=fluorescence/first(fluorescence))
+```
+
+Plot again 
+
+```{r}
+data%>%
+  ggplot(aes(x=time, y=fluorescence.norm, colour=temperature, group=sample))+
+  facet_wrap(~bag*date)+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+View blanks
+
+```{r}
+data%>%
+  filter(type=="blank")%>%
+  ggplot(aes(x=time, y=fluorescence.norm, colour=temperature, group=sample))+
+  facet_wrap(~bag*date)+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+Calculate mean change in blank at each time point. 
+
+```{r}
+blanks<-data%>%
+  filter(type=="blank")%>%
+  group_by(date, bag, temperature, time)%>%
+  summarise(mean_blank=mean(fluorescence.norm))
+```
+
+View summarized blank data. 
+
+```{r}
+blanks%>%
+  ggplot(aes(x=time, y=mean_blank, colour=temperature))+
+  facet_wrap(~bag*date)+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+Subtract blank values from fluorescence values for oysters. 
+
+```{r}
+data<-left_join(data, blanks)
+
+data<-data%>%
+  filter(!type=="blank")%>%
+  mutate(value=fluorescence.norm-mean_blank)
+```
+
+Plot again. 
+
+```{r}
+data%>%
+  ggplot(aes(x=time, y=fluorescence.norm, colour=temperature, group=sample))+
+  facet_wrap(~bag*date*hardening)+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+Remove unnecessary columns. 
+
+```{r}
+data<-data%>%
+  select(!type)%>%
+  select(!fluorescence.norm)%>%
+  select(!mean_blank)%>%
+  select(!fluorescence)
+```
+
+Plot against final mortality. 
+
+```{r}
+data%>%
+  filter(time==4)%>%
+  filter(temperature=="42C")%>%
+  
+  ggplot(aes(x=final.mortality, y=value, colour=final.mortality))+
+  geom_point()+
+  theme_classic()
+```
+
+Under temperature stress, there appears to be a positive relationship between fluorescence at 4 hrs and final mortality status.  
+
+# Analysis 
+
+## Analyze treatment effects 
+
+First, log transform the data. 
+
+```{r}
+data$log_value<-log10(data$value+1)
+```
+
+```{r}
+data%>%
+  ggplot(aes(x=time, y=log_value, colour=temperature, group=sample))+
+  facet_wrap(~bag*date*hardening)+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+First try a linear mixed effect model and come back to this later for non linear models.  
+
+Will need to come back to random effects here. 
+```{r}
+model<-lmer(log_value ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=data)
+
+summary(model)
+anova(model)
+rand(model)
+
+qqPlot(residuals(model))
+
+plot(Effect(c("temperature"), model, transformation=list(link=log)))
+plot(Effect(c("hardening"), model, transformation=list(link=log)))
+plot(Effect(c("time"), model, transformation=list(link=log)))
+plot(Effect(c("time", "temperature"), model, transformation=list(link=log)))
+plot(Effect(c("time", "hardening"), model, transformation=list(link=log)))
+plot(Effect(c("time", "hardening", "temperature"), model, transformation=list(link=log)))
+```
+
+Come back to normality assessment.  
+
+Significant effects of time x temperature x hardening, indicating different slopes in metabolic rate between temperatures modulated by hardening treatment. 
+
+Analyze just with the ending value. 
+
+```{r}
+final<-data%>%
+  filter(time==4)
+
+model2<-lmer(log_value ~ temperature * hardening + (1|bag:hardening), data=final)
+
+summary(model2)
+anova(model2)
+rand(model2)
+
+qqPlot(residuals(model2))
+
+plot(Effect(c("hardening", "temperature"), model2, transformation=list(link=log)))
+```
+
+## Include mortality in models 
+
+Next, include mortality as a factor. 
+
+```{r}
+model3<-lmer(log_value ~ temperature * hardening * final.mortality + (1|bag:hardening), data=final)
+
+summary(model3)
+anova(model3)
+rand(model3)
+
+qqPlot(residuals(model3))
+
+plot(Effect(c("hardening", "temperature"), model3, transformation=list(link=log)))
+plot(Effect(c("final.mortality"), model3, transformation=list(link=log)))
+plot(Effect(c("temperature"), model3, transformation=list(link=log)))
+```
+
+This shows an interactive effect of hardening and temperature as well as a main effect of mortality and temperature. Rates are lower at 42C, but higher in those that die. Rates are lower in some hardening treatments at high temperature. 
+
+View posthoc. 
+
+```{r}
+emm<-emmeans(model3, ~ hardening | temperature | final.mortality)
+pairs(emm)
+
+emm<-emmeans(model3, ~ temperature | hardening | final.mortality)
+pairs(emm)
+
+emm<-emmeans(model3, ~ final.mortality | hardening | temperature)
+pairs(emm)
+```
+
+All hardening treatments have lower metabolism at high temperature. The decrease is stronger in immune, fresh water, and fresh water temperature treatments as compared to control and temperature hardening.  
+
+No difference in metabolic rates between temperatures in those that lived in control. There was a difference for all other treatments. 
+
+There was a difference in metabolic rates between temperature treatments for those that died in all treatments EXCEPT temperature hardening. 
+
+## Mortality and rates 
+
+Analyze the relationship between rate and mortality. 
+
+```{r}
+model4<-lm(log_value ~ status, data=data)
+summary(model4)
+```
+
+```{r}
+data %>%
+  
+  ggplot(aes(x=as.factor(status), y=log_value))+
+  geom_boxplot()+
+  geom_point()+
+  theme_classic()
+```
+
+Those that died have a higher metabolic rate. 
+
+# Plot data
+
+Look at data to remove outliers if needed. 
+```{r}
+hist(final$log_value)
+```
+No obvious outliers.  
+
+Plot final metabolic rates across hardening and temperature treatments for those that lived vs those that died. 
+
+```{r}
+final %>%
+  
+  ggplot(aes(x=hardening, y=log_value, colour=temperature))+
+  facet_wrap(~final.mortality)+
+  geom_boxplot()+
+  geom_point(position=position_jitterdodge(0.1))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  theme(
+    axis.text.x=element_text(angle=45, hjust=1, vjust=1)
+  )
+```
+
+Plot as mean and standard error. 
+
+```{r}
+final %>%
+  group_by(hardening, temperature, final.mortality)%>%
+  summarise(mean=mean(log_value), se=sd(log_value)/sqrt(length(log_value)))%>%
+  
+  ggplot(aes(x=hardening, y=mean, colour=temperature))+
+  facet_wrap(~final.mortality)+
+  geom_point(position=position_dodge(0.2))+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), position=position_dodge(0.2), width=0.4)+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  ylim(0,1)+
+  ylab("Fluorescence [4 hr]")+
+  theme(
+    axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+    panel.border=element_rect(fill=NA,color="black", size=0.5, 
+                                    linetype="solid")
+  )
+```
+
+Plot as mean and standard error to focus on mortality differences. 
+
+```{r}
+final %>%
+  group_by(hardening, temperature, final.mortality)%>%
+  summarise(mean=mean(log_value), se=sd(log_value)/sqrt(length(log_value)))%>%
+  
+  ggplot(aes(x=hardening, y=mean, colour=final.mortality))+
+  facet_wrap(~temperature)+
+  geom_point(position=position_dodge(0.2))+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), position=position_dodge(0.2), width=0.4)+
+  scale_colour_manual(values=c("gray", "darkred"))+
+  theme_classic()+
+  ylab("Fluorescence [4 hr]")+
+  ylim(0,1)+
+  theme(
+    axis.text.x=element_text(angle=45, hjust=1, vjust=1),
+    panel.border=element_rect(fill=NA,color="black", size=0.5, 
+                                    linetype="solid")
+  )
+
+```
+
+
+```{r}
+final %>%
+  group_by(hardening, temperature, final.mortality)%>%
+  summarise(mean=mean(log_value), se=sd(log_value)/sqrt(length(log_value)))%>%
+  
+  ggplot(aes(x=temperature, y=mean, colour=final.mortality))+
+  facet_grid(~hardening)+
+  geom_point(position=position_dodge(0.2))+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), position=position_dodge(0.2), width=0.4)+
+  scale_colour_manual(values=c("gray", "darkred"))+
+  theme_classic()+
+  ylab("Fluorescence [4 hr]")+
+  ylim(0,1)+
+  theme(
+    axis.text.x=element_text(angle=45, hjust=1, vjust=1), 
+    panel.border=element_rect(fill=NA,color="black", size=0.5, 
+                                    linetype="solid")
+    )
+
+```
+
