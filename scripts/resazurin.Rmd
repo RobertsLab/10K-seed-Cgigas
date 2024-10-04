@@ -252,6 +252,76 @@ qqPlot(residuals(model2))
 plot(Effect(c("hardening", "temperature"), model2, transformation=list(link=log)))
 ```
 
+Run a model including time for those that lived and died separately 
+
+```{r}
+dead<-data%>%
+  filter(final.mortality=="dead")
+
+alive<-data%>%
+  filter(final.mortality=="alive")
+```
+
+Alive
+```{r}
+model2a<-lmer(log_value ~ time * temperature * hardening + (1|bag:hardening:sample) + (1|bag), data=alive)
+
+summary(model2a)
+anova(model2a)
+rand(model2a)
+
+qqPlot(residuals(model2a))
+```
+
+Plot this. 
+```{r}
+plot_alive<-alive%>%
+  
+  ggplot(aes(x=time, y=log_value, color=temperature))+
+  facet_grid(~hardening)+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour")+
+  ggtitle("Oysters that lived");plot_alive
+  
+ggsave(plot_alive, filename="figures/resazurin/alive_metabolism.png", width=10, height=5)
+```
+
+Dead
+```{r}
+model2b<-lmer(log_value ~ time * temperature * hardening + (1|bag:hardening:sample) + (1|bag), data=dead)
+
+summary(model2b)
+anova(model2b)
+rand(model2b)
+
+qqPlot(residuals(model2b))
+
+plot(Effect(c("time", "hardening", "temperature"), model2b, transformation=list(link=log)))
+
+emm<-emmeans(model2b, ~hardening|time)
+pairs(emm)
+```
+
+Plot this. 
+
+```{r}
+plot_dead<-dead%>%
+  
+  ggplot(aes(x=time, y=log_value, color=temperature))+
+  facet_grid(~hardening)+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour")+
+  ggtitle("Oysters that died");plot_dead
+  
+ggsave(plot_dead, filename="figures/resazurin/dead_metabolism.png", width=10, height=5)
+```
+
 ## Include mortality in models 
 
 Next, include mortality as a factor. 
@@ -338,7 +408,7 @@ final %>%
 Plot as mean and standard error. 
 
 ```{r}
-final %>%
+plot1<-final %>%
   group_by(hardening, temperature, final.mortality)%>%
   summarise(mean=mean(log_value), se=sd(log_value)/sqrt(length(log_value)))%>%
   
@@ -354,13 +424,15 @@ final %>%
     axis.text.x=element_text(angle=45, hjust=1, vjust=1),
     panel.border=element_rect(fill=NA,color="black", size=0.5, 
                                     linetype="solid")
-  )
+  );plot1
+
+ggsave(plot1, filename="figures/resazurin/resazurin_plot1.png", width=7, height=5)
 ```
 
 Plot as mean and standard error to focus on mortality differences. 
 
 ```{r}
-final %>%
+plot2<-final %>%
   group_by(hardening, temperature, final.mortality)%>%
   summarise(mean=mean(log_value), se=sd(log_value)/sqrt(length(log_value)))%>%
   
@@ -376,13 +448,13 @@ final %>%
     axis.text.x=element_text(angle=45, hjust=1, vjust=1),
     panel.border=element_rect(fill=NA,color="black", size=0.5, 
                                     linetype="solid")
-  )
+  );plot2
 
+ggsave(plot2, filename="figures/resazurin/resazurin_plot2.png", width=7, height=5)
 ```
 
-
 ```{r}
-final %>%
+plot3<-final %>%
   group_by(hardening, temperature, final.mortality)%>%
   summarise(mean=mean(log_value), se=sd(log_value)/sqrt(length(log_value)))%>%
   
@@ -392,13 +464,15 @@ final %>%
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), position=position_dodge(0.2), width=0.4)+
   scale_colour_manual(values=c("gray", "darkred"))+
   theme_classic()+
+  geom_line(aes(group=final.mortality), position=position_dodge(0.1))+
   ylab("Fluorescence [4 hr]")+
   ylim(0,1)+
   theme(
     axis.text.x=element_text(angle=45, hjust=1, vjust=1), 
     panel.border=element_rect(fill=NA,color="black", size=0.5, 
                                     linetype="solid")
-    )
+    );plot3
 
+ggsave(plot3, filename="figures/resazurin/resazurin_plot3.png", width=10, height=4)
 ```
 
