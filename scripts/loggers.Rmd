@@ -82,7 +82,8 @@ temp_plot<-tidbits%>%
   geom_point(alpha=0.7, color="darkgray")+
   geom_smooth(color="black")+
   ylab("Temperature (°C)")+
-  xlab("Date Time")+
+  xlab("Date")+
+  ggtitle("Lagoon")+
   ylim(8,32)+
   theme_classic(); temp_plot
 
