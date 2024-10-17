@@ -322,6 +322,142 @@ plot_dead<-dead%>%
 ggsave(plot_dead, filename="figures/resazurin/dead_metabolism.png", width=10, height=5)
 ```
 
+Plot regardless of treatment
+```{r}
+plot_dead2<-dead%>%
+  
+  ggplot(aes(x=time, y=log_value, color=temperature))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour")+
+  ggtitle("Oysters that died");plot_dead2
+  
+ggsave(plot_dead2, filename="figures/resazurin/dead_metabolism_average.png", width=10, height=5)
+```
+
+```{r}
+plot_live2<-alive%>%
+  
+  ggplot(aes(x=time, y=log_value, color=temperature))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour")+
+  ggtitle("Oysters that lived");plot_live2
+  
+ggsave(plot_live2, filename="figures/resazurin/alive_metabolism_average.png", width=10, height=5)
+```
+
+Plot live and dead average together. 
+```{r}
+plot_live_dead<-data%>%
+  
+  ggplot(aes(x=time, y=log_value, colour=final.mortality))+
+  facet_wrap(~temperature)+
+  #geom_point(alpha=0.5)+
+  geom_smooth(aes(group=final.mortality))+
+  scale_colour_manual(values=c("cyan4", "orange"), labels=c("survived", "died"))+
+  theme_classic()+
+  xlab("Hours")+
+  ylab("log(Metabolic Rate)")+
+  ggtitle("")+
+  theme(legend.title=element_blank(), 
+        legend.position="top");plot_live_dead
+  
+ggsave(plot_live_dead, filename="figures/resazurin/all_metabolism_average.png", width=6, height=5)
+```
+
+```{r}
+plot_live_dead2<-data%>%
+  mutate(mortality=if_else(final.mortality=="alive", "survived", "died"))%>%
+  
+  ggplot(aes(x=time, y=log_value, colour=temperature))+
+  facet_wrap(~mortality)+
+  #geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("darkgray", "darkred"), labels=c("ambient", "high stress"))+
+  theme_classic()+
+  xlab("Hours")+
+  ylab("log(Metabolic Rate)")+
+  ggtitle("")+
+  theme(legend.title=element_blank(), 
+        legend.position="top");plot_live_dead2
+  
+ggsave(plot_live_dead2, filename="figures/resazurin/all_metabolism_average2.png", width=6, height=5)
+```
+
+Calculate percent decrease in metabolism at 4 hours for those that died vs those that survived. 
+
+```{r}
+data%>%
+  filter(time=="4")%>%
+  group_by(temperature, final.mortality)%>%
+  summarize(mean=mean(log_value, na.rm=TRUE))%>%
+  pivot_wider(names_from="temperature", values_from="mean")%>%
+  mutate(perc_change=`42C`-`18C`/`18C`)
+```
+
+```{r}
+plot_live_dead3<-data%>%
+  filter(temperature=="42C")%>%
+  mutate(mortality=if_else(final.mortality=="alive", "survived", "died"))%>%
+  
+  ggplot(aes(x=time, y=log_value, colour=mortality, linetype=mortality))+
+  #facet_wrap(~mortality)+
+  #geom_point(alpha=0.5)+
+  geom_smooth(aes(group=mortality))+
+  scale_colour_manual(values=c("black", "black"))+
+  scale_linetype_manual(values=c("dashed", "solid"))+
+  theme_classic()+
+  xlab("Hours")+
+  ylab("log(Metabolic Rate)")+
+  ggtitle("")+
+  theme(legend.title=element_blank(), 
+        legend.position="top");plot_live_dead3
+  
+ggsave(plot_live_dead3, filename="figures/resazurin/all_metabolism_average3.png", width=4, height=5)
+```
+
+```{r}
+data%>%
+  filter(time=="4")%>%
+  filter(temperature=="42C")%>%
+  group_by(final.mortality)%>%
+  summarize(mean=mean(log_value, na.rm=TRUE))%>%
+  pivot_wider(names_from="final.mortality", values_from="mean")%>%
+  mutate(perc_change=(`dead`-`alive`)/`dead`)
+```
+
+```{r}
+plot_4<-data%>%
+  
+  ggplot(aes(x=time, y=log_value, colour=temperature))+
+  #geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature), method="loess")+
+  scale_colour_manual(values=c("darkgray", "darkred"), labels=c("control", "stressed"))+
+  theme_classic()+
+  xlab("Hours")+
+  ylab("log(Metabolic Rate)")+
+  ggtitle("")+
+  theme(legend.title=element_blank(), 
+        legend.position="top");plot_4
+  
+ggsave(plot_4, filename="figures/resazurin/temp_metabolism_average.png", width=4, height=5)
+```
+
+```{r}
+data%>%
+  filter(time=="4")%>%
+  group_by(temperature)%>%
+  summarize(mean=mean(log_value, na.rm=TRUE))%>%
+  pivot_wider(names_from="temperature", values_from="mean")%>%
+  mutate(perc_change=(`42C`-`18C`)/`18C`)
+```
+
+
 ## Include mortality in models 
 
 Next, include mortality as a factor. 
@@ -372,11 +508,16 @@ summary(model4)
 
 ```{r}
 data %>%
+  filter(time=="4")%>%
+  group_by(status)%>%
+  summarise(mean=mean(log_value, na.rm=TRUE), se=sqrt(sd(log_value, na.rm=TRUE))/length(log_value))%>%
   
-  ggplot(aes(x=as.factor(status), y=log_value))+
-  geom_boxplot()+
+  ggplot(aes(x=as.factor(status), y=mean))+
   geom_point()+
-  theme_classic()
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.05)+
+  theme_classic()+
+  xlab("Mortality")+
+  ylim(0.5,0.7)
 ```
 
 Those that died have a higher metabolic rate. 
