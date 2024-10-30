@@ -1,12 +1,12 @@
-,first_round,,,,,,,,,,second_round,,,,
-bag,treatment,time.exposure,20240628,20240701,20240703,20240705,20240708,20240710,20240712,20240715,treatment,time.exposure,20240913,20240917,20240919
-47,35C,1 hr,x,x,x,x,x,x,x,,35C,1 hr,,,
-30,35C,1 hr,x,x,x,x,x,x,x,,35C,1 hr,,,
-66,FW,1 hr,x,x,x,x,x,x,x,,FW,1 hr,,,
-56,FW,1 hr,x,x,x,x,x,x,x,,FW,1 hr,,,
-75,FW 35C,1 hr,x,x,x,x,x,x,x,,FW 35C,1 hr,,,
-76,FW 35C,1 hr,x,x,x,x,x,x,x,,FW 35C,1 hr,,,
-50,Immune,1.5 hr,,,,,,,x,x,Immune,1.5 hr,,,
-49,Immune,1.5 hr,,,,,,,x,x,Immune,1.5 hr,,,
-36,control,NA,,,,,,,,,control,NA,,,
-37,control,NA,,,,,,,,,control,NA,,,
+,first_round,,,,,,,,,,second_round,,,,,,,,,,,,
+bag,treatment,time.exposure,20240628,20240701,20240703,20240705,20240708,20240710,20240712,20240715,treatment,time.exposure,20240913,20240914,20240915,20240916,20240917,20240918,20240919,20240920,20241007,20241010,20241015
+47,35C,1 hr,x,x,x,x,x,x,x,,35C,6 hrs daily,x,x,x,x,x,x,x,x,,,
+30,35C,1 hr,x,x,x,x,x,x,x,,35C,6 hrs daily,x,x,x,x,x,x,x,x,,,
+66,FW,1 hr,x,x,x,x,x,x,x,,FW,2 hr; 3x weekly,x,,x,,x,,,x,,,
+56,FW,1 hr,x,x,x,x,x,x,x,,FW,2 hr; 3x weekly,x,,x,,x,,,x,,,
+75,FW 35C,1 hr,x,x,x,x,x,x,x,,FW 35C,6 hrs daily temp; 3x weekly fresh,x,x,x,x,x,x,x,x,,,
+76,FW 35C,1 hr,x,x,x,x,x,x,x,,FW 35C,6 hrs daily temp; 3x weekly fresh,x,x,x,x,x,x,x,x,,,
+50,Immune,1.5 hr,,,,,,,x,x,Immune,1.5 hr,,,,,,,,,x,x,x
+49,Immune,1.5 hr,,,,,,,x,x,Immune,1.5 hr,,,,,,,,,x,x,x
+36,control,,,,,,,,,,control,,,,,,,,,,,,
+37,control,,,,,,,,,,control,,,,,,,,,,,,
