@@ -1,8 +1,3 @@
-10K seed resazurin metabolic rate analysis
-================
-AS Huffmyer
-2024
-
 Interpretations tl;dr: - Temperature hardened oysters show less
 metabolic plasticity and died more under stress - Metabolic rates are
 different in stressed oysters - Metabolic rates are different in those
@@ -13,251 +8,219 @@ in metabolism using resazurin assay
 
 Set up workspace, set options, and load required packages.
 
-``` r
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-```
+    knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 Load libraries.
 
-``` r
-library(MASS) 
-library(tidyverse)
-library(ggplot2)
-library(readxl)
-library(cowplot)
-library(lme4)
-library(lmerTest)
-library(car)
-library(effects)
-library(emmeans)
-```
+    library(MASS) 
+    library(tidyverse)
+    library(ggplot2)
+    library(readxl)
+    library(cowplot)
+    library(lme4)
+    library(lmerTest)
+    library(car)
+    library(effects)
+    library(emmeans)
 
 # Load data
 
 Read in resazurin data
 
-``` r
-#read in files
-data <- read_csv("data/resazurin/resazurin_data.csv")
+    #read in files
+    data <- read_csv("data/resazurin/resazurin_data.csv")
 
-data<-data%>%
-  pivot_longer(names_to="time", values_to="fluorescence", cols=`0`:`4`)%>%
-  mutate(time=as.numeric(time))
-```
+    data<-data%>%
+      pivot_longer(names_to="time", values_to="fluorescence", cols=`0`:`4`)%>%
+      mutate(time=as.numeric(time))
 
 Read in survival data
 
-``` r
-surv<-read_excel("data/survival/survival_resazurin.xlsx")
+    surv<-read_excel("data/survival/survival_resazurin.xlsx")
 
-surv<-surv%>%
-  pivot_longer(names_to="time", values_to="status", cols=`0`:`24`)%>%
-  mutate(time=as.numeric(time))%>%
-  rename(date=date.resazurin, sample=oyster)%>%
-  mutate(sample=as.character(sample))
-```
+    surv<-surv%>%
+      pivot_longer(names_to="time", values_to="status", cols=`0`:`24`)%>%
+      mutate(time=as.numeric(time))%>%
+      rename(date=date.resazurin, sample=oyster)%>%
+      mutate(sample=as.character(sample))
 
 Read in size data
 
-``` r
-size <- read_csv("data/resazurin/resazurin-size.csv")%>%select(!notes)%>%mutate(sample=as.character(sample))
-```
+    size <- read_csv("data/resazurin/resazurin-size.csv")%>%select(!notes)%>%mutate(sample=as.character(sample))
 
 Combine data
 
-``` r
-data<-left_join(data, surv)
+    data<-left_join(data, surv)
 
-data<-left_join(data,size)
-```
+    data<-left_join(data,size)
 
 Add in final mortality status
 
-``` r
-final<-surv%>%
-  filter(time==24)%>%
-  rename(final.mortality=status)%>%
-  select(!time)
+    final<-surv%>%
+      filter(time==24)%>%
+      rename(final.mortality=status)%>%
+      select(!time)
 
-data<-left_join(data, final)
-```
+    data<-left_join(data, final)
 
 We now have resazurin and survival data in the data frame.
 
-``` r
-data<-data%>%
-  mutate(final.mortality = case_when(
-    final.mortality == 0 ~ "alive",
-    final.mortality == 1 ~ "dead",
-    TRUE ~ as.character(final.mortality)  # To handle any other values
-  ))
-```
+    data<-data%>%
+      mutate(final.mortality = case_when(
+        final.mortality == 0 ~ "alive",
+        final.mortality == 1 ~ "dead",
+        TRUE ~ as.character(final.mortality)  # To handle any other values
+      ))
 
 # Data preparation
 
 Plot the data.
 
-``` r
-data%>%
-  ggplot(aes(x=time, y=fluorescence, colour=temperature, group=sample))+
-  facet_wrap(~bag*date)+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    data%>%
+      ggplot(aes(x=time, y=fluorescence, colour=temperature, group=sample))+
+      facet_wrap(~bag*date)+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-9-1.png)
 
 Calculate fluorescence at each time point normalized to the starting
 value at time 0.
 
-``` r
-data<-data%>%
-  group_by(date, bag, sample, width.mm, length.mm)%>%
-  arrange(date, bag, sample)%>%
-  mutate(fluorescence.norm=fluorescence/first(fluorescence))
-```
+    data<-data%>%
+      group_by(date, bag, sample, width.mm, length.mm)%>%
+      arrange(date, bag, sample)%>%
+      mutate(fluorescence.norm=fluorescence/first(fluorescence))
 
 Plot again
 
-``` r
-data%>%
-  ggplot(aes(x=time, y=fluorescence.norm, colour=temperature, group=sample))+
-  facet_wrap(~bag*date)+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    data%>%
+      ggplot(aes(x=time, y=fluorescence.norm, colour=temperature, group=sample))+
+      facet_wrap(~bag*date)+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-11-1.png)
 
 View blanks
 
-``` r
-data%>%
-  filter(type=="blank")%>%
-  ggplot(aes(x=time, y=fluorescence.norm, colour=temperature, group=sample))+
-  facet_wrap(~bag*date)+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    data%>%
+      filter(type=="blank")%>%
+      ggplot(aes(x=time, y=fluorescence.norm, colour=temperature, group=sample))+
+      facet_wrap(~bag*date)+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-12-1.png)
 
 Calculate mean change in blank at each time point.
 
-``` r
-blanks<-data%>%
-  filter(type=="blank")%>%
-  group_by(date, bag, temperature, time)%>%
-  summarise(mean_blank=mean(fluorescence.norm))
-```
+    blanks<-data%>%
+      filter(type=="blank")%>%
+      group_by(date, bag, temperature, time)%>%
+      summarise(mean_blank=mean(fluorescence.norm))
 
 View summarized blank data.
 
-``` r
-blanks%>%
-  ggplot(aes(x=time, y=mean_blank, colour=temperature))+
-  facet_wrap(~bag*date)+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    blanks%>%
+      ggplot(aes(x=time, y=mean_blank, colour=temperature))+
+      facet_wrap(~bag*date)+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-14-1.png)
 
 Subtract blank values from fluorescence values for oysters.
 
-``` r
-data<-left_join(data, blanks)
+    data<-left_join(data, blanks)
 
-data<-data%>%
-  filter(!type=="blank")%>%
-  mutate(value=fluorescence.norm-mean_blank)
-```
+    data<-data%>%
+      filter(!type=="blank")%>%
+      mutate(value=fluorescence.norm-mean_blank)
 
 Plot again.
 
-``` r
-data%>%
-  ggplot(aes(x=time, y=value, colour=temperature, group=sample))+
-  facet_wrap(~bag*date*hardening)+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    data%>%
+      ggplot(aes(x=time, y=value, colour=temperature, group=sample))+
+      facet_wrap(~bag*date*hardening)+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-16-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-16-1.png)
 
 Remove unnecessary columns.
 
-``` r
-data<-data%>%
-  select(!type)%>%
-  select(!fluorescence.norm)%>%
-  select(!mean_blank)%>%
-  select(!fluorescence)
-```
+    data<-data%>%
+      select(!type)%>%
+      select(!fluorescence.norm)%>%
+      select(!mean_blank)%>%
+      select(!fluorescence)
 
 Normalize blank corrected fluorescence to oyster size by dividing
 fluorescence value (normalized to starting value and blank corrected) by
 oyster size. Calculate volume by using length and width.
 
-``` r
-data$volume.mm3<-(4/3) * pi * ((data$length.mm/2) * (data$width.mm/2))^2
+    data$volume.mm3<-(4/3) * pi * ((data$length.mm/2) * (data$width.mm/2))^2
 
-data$value.mm3<-data$value/data$volume.mm3
-```
+    data$value.mm3<-data$value/data$volume.mm3
 
 Plot size normalized resazurin response.
 
-``` r
-data%>%
-  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
-  facet_wrap(~bag*date*hardening)+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    data%>%
+      ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
+      facet_wrap(~bag*date*hardening)+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-19-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-19-1.png)
 
 Plot against final mortality.
 
-``` r
-data%>%
-  filter(time==4)%>%
-  filter(temperature=="42C")%>%
-  
-  ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
-  geom_point()+
-  theme_classic()
-```
+    data%>%
+      filter(time==4)%>%
+      filter(temperature=="42C")%>%
+      
+      ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
+      geom_point()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-20-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-20-1.png)
 
-``` r
-data%>%
-  filter(time==4)%>%
-  filter(temperature=="18C")%>%
-  
-  ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
-  geom_point()+
-  theme_classic()
-```
+    data%>%
+      filter(time==4)%>%
+      filter(temperature=="18C")%>%
+      
+      ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
+      geom_point()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-20-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-20-2.png)
 
 Under temperature stress, there appears to be a positive relationship
 between fluorescence at 4 hrs and final mortality status. This does not
 appear to show up at 18°C.
 
+Plot size and mortality relationships.
+
+    data%>%
+      filter(time==4)%>%
+      
+      ggplot(aes(x=volume.mm3, y=final.mortality, colour=final.mortality))+
+      geom_violin()+
+      theme_classic()
+
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-21-1.png) Not
+much difference if any.
+
 Set time as a factor.
 
-``` r
-data$time<-as.factor(data$time)
-```
+    data$time<-as.factor(data$time)
 
 # Analysis
 
@@ -265,32 +228,26 @@ data$time<-as.factor(data$time)
 
 View size range.
 
-``` r
-hist(data$volume.mm3)
-```
+    hist(data$volume.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-22-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-23-1.png)
 
 Remove the two outlier oysters.
 
-``` r
-data<-data%>%
-  filter(volume.mm3<150000)
+    data<-data%>%
+      filter(volume.mm3<150000)
 
-hist(data$volume.mm3)
-```
+    hist(data$volume.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-24-1.png)
 
 View metabolic rates over time as a function of size and temperature
 treatment using the non-size normalized fluorescence values. Include
 repeated measures for each individual.
 
-``` r
-model.size<-lmer(sqrt(value) ~ time * temperature * scale(volume.mm3) + (1|bag) + (1|date:bag:sample), data=data)
+    model.size<-lmer(sqrt(value) ~ time * temperature * scale(volume.mm3) + (1|bag) + (1|date:bag:sample), data=data)
 
-summary(model.size)
-```
+    summary(model.size)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -357,9 +314,7 @@ summary(model.size)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-anova(model.size)
-```
+    anova(model.size)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                                    Sum Sq Mean Sq NumDF   DenDF   F value
@@ -381,9 +336,7 @@ anova(model.size)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-rand(model.size)
-```
+    rand(model.size)
 
     ## ANOVA-like table for random-effects: Single term deletions
     ## 
@@ -396,19 +349,15 @@ rand(model.size)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-qqPlot(residuals(model.size))
-```
+    qqPlot(residuals(model.size))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-24-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-25-1.png)
 
     ## [1] 1046 1026
 
-``` r
-plot(Effect(c("volume.mm3"), model.size))
-```
+    plot(Effect(c("volume.mm3"), model.size))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-24-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-25-2.png)
 
 There is a significant effect of time and size as well as interactions
 between time-temperature, time-size, and time-temperature-size. This
@@ -417,33 +366,27 @@ indicates that metabolic scaling is different between temperatures.
 Plot metabolic rates (y) over time (x) with a gradient of color for
 size.
 
-``` r
-data%>%
-  ggplot(aes(x=time, y=sqrt(value), colour=scale(volume.mm3), group=paste(date, bag, sample)))+
-  facet_wrap(~temperature)+
-  scale_colour_gradientn(colours=c("blue", "lightblue", "white","pink", "red"))+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    data%>%
+      ggplot(aes(x=time, y=sqrt(value), colour=scale(volume.mm3), group=paste(date, bag, sample)))+
+      facet_wrap(~temperature)+
+      scale_colour_gradientn(colours=c("blue", "lightblue", "white","pink", "red"))+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-25-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-26-1.png)
 
 In general there are higher rates for larger sizes.
 
 Model using the final time point to quantify size effects on total
 fluorescence change.
 
-``` r
-final<-data%>%
-  filter(time=="4")
-```
+    final<-data%>%
+      filter(time=="4")
 
-``` r
-model.size2<-lmer(sqrt(value) ~ temperature * scale(volume.mm3) + (1|bag), data=data)
+    model.size2<-lmer(sqrt(value) ~ temperature * scale(volume.mm3) + (1|bag), data=data)
 
-summary(model.size2)
-```
+    summary(model.size2)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -482,9 +425,7 @@ summary(model.size2)
     ## scl(vlm.m3)  0.146 -0.212       
     ## tmp42C:(.3) -0.108  0.057 -0.769
 
-``` r
-anova(model.size2)
-```
+    anova(model.size2)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                                Sum Sq Mean Sq NumDF  DenDF F value    Pr(>F)
@@ -498,9 +439,7 @@ anova(model.size2)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-rand(model.size2)
-```
+    rand(model.size2)
 
     ## ANOVA-like table for random-effects: Single term deletions
     ## 
@@ -512,35 +451,29 @@ rand(model.size2)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-qqPlot(residuals(model.size2))
-```
+    qqPlot(residuals(model.size2))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-27-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-28-1.png)
 
     ## [1] 1050 1030
 
-``` r
-plot(Effect(c("volume.mm3"), model.size2))
-```
+    plot(Effect(c("volume.mm3"), model.size2))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-27-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-28-2.png)
 
 Temperature and size affect metabolic rate.
 
 Plot metabolic rates (y) over size range (x).
 
-``` r
-final%>%
-  
-  ggplot(aes(x=volume.mm3, y=sqrt(value)))+
-  #facet_wrap(~temperature)+
-  geom_point()+
-  geom_smooth(method="lm")+
-  theme_classic()
-```
+    final%>%
+      
+      ggplot(aes(x=volume.mm3, y=sqrt(value)))+
+      #facet_wrap(~temperature)+
+      geom_point()+
+      geom_smooth(method="lm")+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-28-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-29-1.png)
 
 There is a positive relationship between metabolic rate and size, but it
 is not particularly strong.
@@ -549,29 +482,25 @@ Plot correlation plot.
 
 18°C
 
-``` r
-correlation18C <- lm(sqrt(value) ~ volume.mm3, data = final%>%filter(temperature=="18C"))
+    correlation18C <- lm(sqrt(value) ~ volume.mm3, data = final%>%filter(temperature=="18C"))
 
-corrplot18C<-ggplot(final%>%filter(temperature=="18C"), aes(x = volume.mm3, y = sqrt(value))) +
-      geom_point() + 
-      geom_smooth(method = "lm", se = TRUE) + 
-      theme_classic()+
-      labs(title = "y=8.101e-06 + 1.631 (18°C)");corrplot18C
-```
+    corrplot18C<-ggplot(final%>%filter(temperature=="18C"), aes(x = volume.mm3, y = sqrt(value))) +
+          geom_point() + 
+          geom_smooth(method = "lm", se = TRUE) + 
+          theme_classic()+
+          labs(title = "y=8.101e-06 + 1.631 (18°C)");corrplot18C
 
-![](resazurin_files/figure-gfm/unnamed-chunk-29-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-30-1.png)
 
-``` r
-correlation42C <- lm(sqrt(value) ~ volume.mm3, data = final%>%filter(temperature=="42C"))
+    correlation42C <- lm(sqrt(value) ~ volume.mm3, data = final%>%filter(temperature=="42C"))
 
-corrplot42C<-ggplot(final%>%filter(temperature=="42C"), aes(x = volume.mm3, y = sqrt(value))) +
-      geom_point() + 
-      geom_smooth(method = "lm", se = TRUE) + 
-      theme_classic()+
-      labs(title = "y=5.773e-06 + 1.233 (42°C)");corrplot42C
-```
+    corrplot42C<-ggplot(final%>%filter(temperature=="42C"), aes(x = volume.mm3, y = sqrt(value))) +
+          geom_point() + 
+          geom_smooth(method = "lm", se = TRUE) + 
+          theme_classic()+
+          labs(title = "y=5.773e-06 + 1.233 (42°C)");corrplot42C
 
-![](resazurin_files/figure-gfm/unnamed-chunk-29-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-30-2.png)
 
 Size is important to consider, so we will normalize metabolic rates to
 size using value.mm3 generated above.
@@ -582,39 +511,33 @@ size using value.mm3 generated above.
 
 Build a model including all predictors.
 
-``` r
-model<-lmer(value.mm3 ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=data)
+    model<-lmer(value.mm3 ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=data)
 
-qqPlot(residuals(model))
-```
+    qqPlot(residuals(model))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-30-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-31-1.png)
 
     ## [1] 1050 1046
 
-``` r
-hist(data$value.mm3)
-```
+    hist(data$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-30-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-31-2.png)
 
 Identify using standardized residuals.
 
-``` r
-# Extract raw residuals
-data$raw_resid <- residuals(model)
+    # Extract raw residuals
+    data$raw_resid <- residuals(model)
 
-# Standardize residuals
-data$std_resid <- data$raw_resid / sd(data$raw_resid)
+    # Standardize residuals
+    data$std_resid <- data$raw_resid / sd(data$raw_resid)
 
-# Flag potential outliers
-outlier_threshold <- 3
-data$outlier_flag <- abs(data$std_resid) > outlier_threshold
+    # Flag potential outliers
+    outlier_threshold <- 3
+    data$outlier_flag <- abs(data$std_resid) > outlier_threshold
 
-# Filter rows flagged as outliers
-outliers <- data %>% filter(outlier_flag == TRUE)
-print(outliers)
-```
+    # Filter rows flagged as outliers
+    outliers <- data %>% filter(outlier_flag == TRUE)
+    print(outliers)
 
     ## # A tibble: 34 × 16
     ## # Groups:   date, bag, sample, width.mm, length.mm [29]
@@ -634,58 +557,46 @@ print(outliers)
     ## # ℹ 7 more variables: final.mortality <chr>, value <dbl>, volume.mm3 <dbl>,
     ## #   value.mm3 <dbl>, raw_resid <dbl>, std_resid <dbl>, outlier_flag <lgl>
 
-``` r
-# Plot standardized residuals
-ggplot(data, aes(x = seq_along(std_resid), y = std_resid)) +
-  geom_point(aes(color = outlier_flag), size = 2) +
-  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
-  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
-  theme_minimal()
-```
+    # Plot standardized residuals
+    ggplot(data, aes(x = seq_along(std_resid), y = std_resid)) +
+      geom_point(aes(color = outlier_flag), size = 2) +
+      geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+      labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+      theme_minimal()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-31-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-32-1.png)
 
 Remove identified outliers.
 
-``` r
-data<-data%>%
-  filter(!outlier_flag==TRUE)
-```
+    data<-data%>%
+      filter(!outlier_flag==TRUE)
 
-``` r
-hist(data$value.mm3)
-```
+    hist(data$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-33-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-34-1.png)
 
 Manually remove outlier of 1 high observation in temperature hardened
 oysters (alive) at 42°C at the final time point.
 
-``` r
-data<-data%>%
-  filter(!c(time=="4"& hardening=="temperature" & final.mortality=="alive" & temperature=="42C" & value.mm3>0.0001))
-```
+    data<-data%>%
+      filter(!c(time=="4"& hardening=="temperature" & final.mortality=="alive" & temperature=="42C" & value.mm3>0.0001))
 
 ### Analyze model
 
 Plot raw data.
 
-``` r
-data%>%
-  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
-  facet_wrap(~bag*date*hardening)+
-  geom_point()+
-  geom_line()+
-  theme_classic()
-```
+    data%>%
+      ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
+      facet_wrap(~bag*date*hardening)+
+      geom_point()+
+      geom_line()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-35-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-36-1.png)
 
-``` r
-model<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|hardening:bag) + (1|date:bag:sample), data=data)
+    model<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|hardening:bag) + (1|date:bag:sample), data=data)
 
-summary(model)
-```
+    summary(model)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -864,9 +775,7 @@ summary(model)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-anova(model)
-```
+    anova(model)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                               Sum Sq   Mean Sq NumDF   DenDF   F value
@@ -888,9 +797,7 @@ anova(model)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-rand(model)
-```
+    rand(model)
 
     ## ANOVA-like table for random-effects: Single term deletions
     ## 
@@ -903,11 +810,9 @@ rand(model)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-qqPlot(residuals(model))
-```
+    qqPlot(residuals(model))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-36-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-37-1.png)
 
     ## [1] 1775  529
 
@@ -922,81 +827,71 @@ Plot mean response for each hardening treatment across time at 18°C and
 
 Plot first with individual points with geom smooth lines.
 
-``` r
-plot1<-data%>%
+    plot1<-data%>%
 
-  ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
-  facet_grid(~hardening)+
-  geom_point(alpha=0.5)+
-  geom_smooth(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hour");plot1
-```
+      ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
+      facet_grid(~hardening)+
+      geom_point(alpha=0.5)+
+      geom_smooth(aes(group=temperature))+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      scale_fill_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Hour");plot1
 
-![](resazurin_files/figure-gfm/unnamed-chunk-37-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-38-1.png)
 
-``` r
-plot1a<-data%>%
+    plot1a<-data%>%
 
-  ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
-  facet_grid(~temperature)+
-  geom_point(alpha=0.5)+
-  geom_smooth(aes(group=hardening))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  #scale_fill_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hour");plot1a
-```
+      ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
+      facet_grid(~temperature)+
+      geom_point(alpha=0.5)+
+      geom_smooth(aes(group=hardening))+
+      #scale_colour_manual(values=c("cyan4", "orange"))+
+      #scale_fill_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Hour");plot1a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-37-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-38-2.png)
 
 Next plot with mean and sem for each group.
 
-``` r
-plot2<-data%>%
-  group_by(temperature, hardening, time)%>%
-  summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot2<-data%>%
+      group_by(temperature, hardening, time)%>%
+      summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
-  facet_grid(~hardening)+
-  geom_point(alpha=0.5)+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
-  geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hour");plot2
-```
+      ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
+      facet_grid(~hardening)+
+      geom_point(alpha=0.5)+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+      geom_line(aes(group=temperature))+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      scale_fill_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Hour");plot2
 
-![](resazurin_files/figure-gfm/unnamed-chunk-38-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-39-1.png)
 
-``` r
-plot2a<-data%>%
-  group_by(temperature, hardening, time)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot2a<-data%>%
+      group_by(temperature, hardening, time)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=time, y=mean, color=hardening, fill=hardening))+
-  facet_grid(~temperature)+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
-  geom_point(alpha=0.5)+
-  geom_line(aes(group=hardening))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  #scale_fill_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hour");plot2a
-```
+      ggplot(aes(x=time, y=mean, color=hardening, fill=hardening))+
+      facet_grid(~temperature)+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+      geom_point(alpha=0.5)+
+      geom_line(aes(group=hardening))+
+      #scale_colour_manual(values=c("cyan4", "orange"))+
+      #scale_fill_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Hour");plot2a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-38-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-39-2.png)
 
 ### Conduct post hoc tests
 
 #### Effects of hardening treatment within temperature
 
-``` r
-anova(model)
-```
+    anova(model)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                               Sum Sq   Mean Sq NumDF   DenDF   F value
@@ -1018,10 +913,8 @@ anova(model)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-emm<-emmeans(model, ~hardening|temperature|time, adjust = "tukey")
-pairs(emm)
-```
+    emm<-emmeans(model, ~hardening|temperature|time, adjust = "tukey")
+    pairs(emm)
 
     ## temperature = 18C, time = 0:
     ##  contrast                                   estimate       SE   df t.ratio
@@ -1269,17 +1162,15 @@ pairs(emm)
 
 Significant effects:
 
-- Time 4 at 18°C: Immune higher than control and
-  fresh-water-temperature.
+-   Time 4 at 18°C: Immune higher than control and
+    fresh-water-temperature.
 
 No differences at 42°C are significant.
 
 #### Effects of temperature treatment within hardening
 
-``` r
-emm<-emmeans(model, ~temperature|hardening|time, adjust = "tukey")
-pairs(emm)
-```
+    emm<-emmeans(model, ~temperature|hardening|time, adjust = "tukey")
+    pairs(emm)
 
     ## hardening = control, time = 0:
     ##  contrast   estimate       SE  df t.ratio p.value
@@ -1386,10 +1277,10 @@ pairs(emm)
 
 Significant effects:
 
-- Time 1: Control lower at 18°C
-- Time 2: Fresh-water-temperature and immune lower at 42°C
-- Time 3: All groups lower at 42°C
-- Time 4: All groups lower at 42°C
+-   Time 1: Control lower at 18°C
+-   Time 2: Fresh-water-temperature and immune lower at 42°C
+-   Time 3: All groups lower at 42°C
+-   Time 4: All groups lower at 42°C
 
 ## Model at time final without mortality status
 
@@ -1397,13 +1288,11 @@ Significant effects:
 
 Build a model including all predictors.
 
-``` r
-final<-data%>%
-  filter(time==4)
+    final<-data%>%
+      filter(time==4)
 
-model2<-lmer(sqrt(value.mm3) ~ temperature * hardening + (1|hardening:bag), data=final)
-summary(model2)
-```
+    model2<-lmer(sqrt(value.mm3) ~ temperature * hardening + (1|hardening:bag), data=final)
+    summary(model2)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -1470,37 +1359,31 @@ summary(model2)
     ## tmprtr42C:hrdnngm                  
     ## tmprtr42C:hrdnngt  0.368
 
-``` r
-qqPlot(residuals(model2))
-```
+    qqPlot(residuals(model2))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-41-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-42-1.png)
 
     ## [1]  74 260
 
-``` r
-hist(final$value.mm3)
-```
+    hist(final$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-41-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-42-2.png)
 
 Identify using standardized residuals.
 
-``` r
-# Extract raw residuals
-final$raw_resid <- residuals(model2)
+    # Extract raw residuals
+    final$raw_resid <- residuals(model2)
 
-# Standardize residuals
-final$std_resid <- final$raw_resid / sd(final$raw_resid)
+    # Standardize residuals
+    final$std_resid <- final$raw_resid / sd(final$raw_resid)
 
-# Flag potential outliers
-outlier_threshold <- 3
-final$outlier_flag <- abs(final$std_resid) > outlier_threshold
+    # Flag potential outliers
+    outlier_threshold <- 3
+    final$outlier_flag <- abs(final$std_resid) > outlier_threshold
 
-# Filter rows flagged as outliers
-outliers <- final %>% filter(outlier_flag == TRUE)
-print(outliers)
-```
+    # Filter rows flagged as outliers
+    outliers <- final %>% filter(outlier_flag == TRUE)
+    print(outliers)
 
     ## # A tibble: 0 × 16
     ## # Groups:   date, bag, sample, width.mm, length.mm [0]
@@ -1509,45 +1392,37 @@ print(outliers)
     ## #   length.mm <dbl>, final.mortality <chr>, value <dbl>, volume.mm3 <dbl>,
     ## #   value.mm3 <dbl>, raw_resid <dbl>, std_resid <dbl>, outlier_flag <lgl>
 
-``` r
-# Plot standardized residuals
-ggplot(final, aes(x = seq_along(std_resid), y = std_resid)) +
-  geom_point(aes(color = outlier_flag), size = 2) +
-  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
-  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
-  theme_minimal()
-```
+    # Plot standardized residuals
+    ggplot(final, aes(x = seq_along(std_resid), y = std_resid)) +
+      geom_point(aes(color = outlier_flag), size = 2) +
+      geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+      labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+      theme_minimal()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-42-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-43-1.png)
 
 No outliers detected.
 
-``` r
-hist(final$value.mm3)
-```
+    hist(final$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-43-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-44-1.png)
 
 ### Analyze model
 
 Plot raw data.
 
-``` r
-final%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=temperature, group=sample))+
-  geom_point()+
-  theme_classic()
-```
+    final%>%
+      ggplot(aes(x=hardening, y=value.mm3, colour=temperature, group=sample))+
+      geom_point()+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-44-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-45-1.png)
 
 Analyze total change in fluorescence (fluorescence after 4 hours).
 
-``` r
-model2<-lmer(sqrt(value.mm3) ~ temperature * hardening + (1|hardening:bag), data=final)
+    model2<-lmer(sqrt(value.mm3) ~ temperature * hardening + (1|hardening:bag), data=final)
 
-summary(model2)
-```
+    summary(model2)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -1614,9 +1489,7 @@ summary(model2)
     ## tmprtr42C:hrdnngm                  
     ## tmprtr42C:hrdnngt  0.368
 
-``` r
-anova(model2)
-```
+    anova(model2)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                           Sum Sq    Mean Sq NumDF  DenDF  F value    Pr(>F)    
@@ -1626,9 +1499,7 @@ anova(model2)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-rand(model2)
-```
+    rand(model2)
 
     ## ANOVA-like table for random-effects: Single term deletions
     ## 
@@ -1640,11 +1511,9 @@ rand(model2)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-qqPlot(residuals(model2))
-```
+    qqPlot(residuals(model2))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-45-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-46-1.png)
 
     ## [1]  74 260
 
@@ -1654,73 +1523,63 @@ Plot mean response for each hardening treatment at 18°C and 42°C.
 
 Plot first with individual points.
 
-``` r
-plot3<-final%>%
+    plot3<-final%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=temperature))+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot3
-```
+      ggplot(aes(x=hardening, y=value.mm3, color=temperature))+
+      geom_boxplot(position=position_dodge(0.5))+
+      geom_point(alpha=0.5, position=position_dodge(0.5))+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot3
 
-![](resazurin_files/figure-gfm/unnamed-chunk-46-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-47-1.png)
 
-``` r
-plot3a<-final%>%
+    plot3a<-final%>%
 
-  ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Temperature");plot3a
-```
+      ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
+      geom_boxplot(position=position_dodge(0.9))+
+      geom_point(alpha=0.5, position=position_dodge(0.9))+
+      #scale_colour_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Temperature");plot3a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-46-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-47-2.png)
 
 Next plot with mean and sem for each group.
 
-``` r
-plot4<-final%>%
-  group_by(temperature, hardening)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot4<-final%>%
+      group_by(temperature, hardening)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=hardening, y=mean, color=temperature, fill=temperature))+
-  geom_point(alpha=0.5)+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot4
-```
+      ggplot(aes(x=hardening, y=mean, color=temperature, fill=temperature))+
+      geom_point(alpha=0.5)+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      scale_fill_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot4
 
-![](resazurin_files/figure-gfm/unnamed-chunk-47-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-48-1.png)
 
-``` r
-plot4a<-final%>%
-  group_by(temperature, hardening)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot4a<-final%>%
+      group_by(temperature, hardening)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=temperature, y=mean, color=hardening, fill=hardening))+
-  geom_point(alpha=0.5, position=position_dodge(0.7))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.7))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  #scale_fill_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Temperature");plot4a
-```
+      ggplot(aes(x=temperature, y=mean, color=hardening, fill=hardening))+
+      geom_point(alpha=0.5, position=position_dodge(0.7))+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.7))+
+      #scale_colour_manual(values=c("cyan4", "orange"))+
+      #scale_fill_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Temperature");plot4a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-47-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-48-2.png)
 
 ### Conduct posthoc tests
 
 #### Effects of hardening treatment within temperature
 
-``` r
-anova(model2)
-```
+    anova(model2)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                           Sum Sq    Mean Sq NumDF  DenDF  F value    Pr(>F)    
@@ -1730,10 +1589,8 @@ anova(model2)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-emm<-emmeans(model2, ~hardening|temperature, adjust = "tukey")
-pairs(emm)
-```
+    emm<-emmeans(model2, ~hardening|temperature, adjust = "tukey")
+    pairs(emm)
 
     ## temperature = 18C:
     ##  contrast                                   estimate      SE   df t.ratio
@@ -1789,16 +1646,14 @@ pairs(emm)
 
 Significant effects:
 
-- 18°C: Immune higher than control
+-   18°C: Immune higher than control
 
 No differences at 42°C are significant.
 
 #### Effects of temperature treatment within hardening
 
-``` r
-emm<-emmeans(model, ~temperature|hardening, adjust = "tukey")
-pairs(emm)
-```
+    emm<-emmeans(model, ~temperature|hardening, adjust = "tukey")
+    pairs(emm)
 
     ## hardening = control:
     ##  contrast  estimate       SE  df t.ratio p.value
@@ -1826,9 +1681,9 @@ pairs(emm)
 
 Significant effects:
 
-- Control is different between temperatures
-- Fresh water, fresh water temperature, immune, and temperature
-  hardening are all lower at 42°C
+-   Control is different between temperatures
+-   Fresh water, fresh water temperature, immune, and temperature
+    hardening are all lower at 42°C
 
 ## Model at time final with mortality status
 
@@ -1836,42 +1691,36 @@ Significant effects:
 
 Build a model including all predictors.
 
-``` r
-final_mort<-data%>%
-  filter(time==4)
+    final_mort<-data%>%
+      filter(time==4)
 
-model3<-lmer(sqrt(value.mm3) ~ temperature * hardening * final.mortality + (1|hardening:bag), data=final_mort)
+    model3<-lmer(sqrt(value.mm3) ~ temperature * hardening * final.mortality + (1|hardening:bag), data=final_mort)
 
-qqPlot(residuals(model3))
-```
+    qqPlot(residuals(model3))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-50-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-51-1.png)
 
     ## [1]  74 121
 
-``` r
-hist(final_mort$value.mm3)
-```
+    hist(final_mort$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-50-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-51-2.png)
 
 Identify using standardized residuals.
 
-``` r
-# Extract raw residuals
-final_mort$raw_resid <- residuals(model3)
+    # Extract raw residuals
+    final_mort$raw_resid <- residuals(model3)
 
-# Standardize residuals
-final_mort$std_resid <- final_mort$raw_resid / sd(final_mort$raw_resid)
+    # Standardize residuals
+    final_mort$std_resid <- final_mort$raw_resid / sd(final_mort$raw_resid)
 
-# Flag potential outliers
-outlier_threshold <- 3
-final_mort$outlier_flag <- abs(final_mort$std_resid) > outlier_threshold
+    # Flag potential outliers
+    outlier_threshold <- 3
+    final_mort$outlier_flag <- abs(final_mort$std_resid) > outlier_threshold
 
-# Filter rows flagged as outliers
-outliers <- final_mort %>% filter(outlier_flag == TRUE)
-print(outliers)
-```
+    # Filter rows flagged as outliers
+    outliers <- final_mort %>% filter(outlier_flag == TRUE)
+    print(outliers)
 
     ## # A tibble: 0 × 16
     ## # Groups:   date, bag, sample, width.mm, length.mm [0]
@@ -1880,49 +1729,41 @@ print(outliers)
     ## #   length.mm <dbl>, final.mortality <chr>, value <dbl>, volume.mm3 <dbl>,
     ## #   value.mm3 <dbl>, raw_resid <dbl>, std_resid <dbl>, outlier_flag <lgl>
 
-``` r
-# Plot standardized residuals
-ggplot(final_mort, aes(x = seq_along(std_resid), y = std_resid)) +
-  geom_point(aes(color = outlier_flag), size = 2) +
-  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
-  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
-  theme_minimal()
-```
+    # Plot standardized residuals
+    ggplot(final_mort, aes(x = seq_along(std_resid), y = std_resid)) +
+      geom_point(aes(color = outlier_flag), size = 2) +
+      geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+      labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+      theme_minimal()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-51-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-52-1.png)
 
 No outliers detected, use the “final” data frame since no observations
 needed to be removed.
 
-``` r
-hist(final$value.mm3)
-```
+    hist(final$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-52-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-53-1.png)
 
 ### Analyze model
 
 Plot raw data.
 
-``` r
-final%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=temperature, group=sample))+
-  facet_wrap(~final.mortality)+
-  geom_point(position=position_dodge(0.5))+
-  theme_classic()
-```
+    final%>%
+      ggplot(aes(x=hardening, y=value.mm3, colour=temperature, group=sample))+
+      facet_wrap(~final.mortality)+
+      geom_point(position=position_dodge(0.5))+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-53-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-54-1.png)
 
 Analyze total change in fluorescence (fluorescence after 4 hours) for
 each treatment and comparing those that ended up alive or dead at the
 end of the trial.
 
-``` r
-model3<-lmer(sqrt(value.mm3) ~ temperature * hardening * final.mortality + (1|hardening:bag), data=final)
+    model3<-lmer(sqrt(value.mm3) ~ temperature * hardening * final.mortality + (1|hardening:bag), data=final)
 
-summary(model3)
-```
+    summary(model3)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -2072,9 +1913,7 @@ summary(model3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-anova(model3)
-```
+    anova(model3)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                                           Sum Sq    Mean Sq NumDF  DenDF
@@ -2096,9 +1935,7 @@ anova(model3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-rand(model3)
-```
+    rand(model3)
 
     ## ANOVA-like table for random-effects: Single term deletions
     ## 
@@ -2110,11 +1947,9 @@ rand(model3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-qqPlot(residuals(model3))
-```
+    qqPlot(residuals(model3))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-54-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-55-1.png)
 
     ## [1]  74 121
 
@@ -2129,106 +1964,92 @@ oysters that ended up alive and dead by the end of the trial.
 
 Plot first with individual points.
 
-``` r
-plot5<-final%>%
+    plot5<-final%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
-  facet_grid(~temperature)+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot5
-```
+      ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
+      facet_grid(~temperature)+
+      geom_boxplot(position=position_dodge(0.5))+
+      geom_point(alpha=0.5, position=position_dodge(0.5))+
+      scale_colour_manual(values=c("darkgray", "darkred"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot5
 
-![](resazurin_files/figure-gfm/unnamed-chunk-55-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-56-1.png)
 
-``` r
-plot5a<-final%>%
+    plot5a<-final%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=temperature))+
-  facet_grid(~final.mortality)+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Temperature");plot5a
-```
+      ggplot(aes(x=hardening, y=value.mm3, color=temperature))+
+      facet_grid(~final.mortality)+
+      geom_boxplot(position=position_dodge(0.9))+
+      geom_point(alpha=0.5, position=position_dodge(0.9))+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Temperature");plot5a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-55-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-56-2.png)
 
-``` r
-plot5b<-final%>%
+    plot5b<-final%>%
 
-  ggplot(aes(x=final.mortality, y=value.mm3, color=temperature))+
-  facet_grid(~hardening)+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Final Mortality");plot5b
-```
+      ggplot(aes(x=final.mortality, y=value.mm3, color=temperature))+
+      facet_grid(~hardening)+
+      geom_boxplot(position=position_dodge(0.9))+
+      geom_point(alpha=0.5, position=position_dodge(0.9))+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Final Mortality");plot5b
 
-![](resazurin_files/figure-gfm/unnamed-chunk-55-3.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-56-3.png)
 
 Next plot with mean and sem for each group.
 
-``` r
-plot6<-final%>%
-  group_by(hardening, final.mortality, temperature)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot6<-final%>%
+      group_by(hardening, final.mortality, temperature)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=hardening, y=mean, color=final.mortality))+
-  facet_grid(~temperature)+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot6
-```
+      ggplot(aes(x=hardening, y=mean, color=final.mortality))+
+      facet_grid(~temperature)+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
+      geom_point(alpha=0.5, position=position_dodge(0.5))+
+      scale_colour_manual(values=c("darkgray", "darkred"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot6
 
-![](resazurin_files/figure-gfm/unnamed-chunk-56-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-57-1.png)
 
-``` r
-plot6a<-final%>%
-  group_by(hardening, final.mortality, temperature)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot6a<-final%>%
+      group_by(hardening, final.mortality, temperature)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=hardening, y=mean, color=temperature))+
-  facet_grid(~final.mortality)+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hardening");plot6a
-```
+      ggplot(aes(x=hardening, y=mean, color=temperature))+
+      facet_grid(~final.mortality)+
+      geom_point(alpha=0.5, position=position_dodge(0.9))+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.9))+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Hardening");plot6a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-56-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-57-2.png)
 
-``` r
-plot6b<-final%>%
-  group_by(hardening, final.mortality, temperature)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot6b<-final%>%
+      group_by(hardening, final.mortality, temperature)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=final.mortality, y=mean, color=temperature))+
-  facet_grid(~hardening)+
-  geom_line(aes(group=temperature), position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Final Mortality");plot6b
-```
+      ggplot(aes(x=final.mortality, y=mean, color=temperature))+
+      facet_grid(~hardening)+
+      geom_line(aes(group=temperature), position=position_dodge(0.9))+
+      geom_point(alpha=0.5, position=position_dodge(0.9))+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.9))+
+      scale_colour_manual(values=c("cyan4", "orange"))+
+      theme_classic()+
+      xlab("Final Mortality");plot6b
 
-![](resazurin_files/figure-gfm/unnamed-chunk-56-3.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-57-3.png)
 
 ### Conduct posthoc tests
 
 #### Effects of mortality within temperature and hardening treatment
 
-``` r
-anova(model3)
-```
+    anova(model3)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                                           Sum Sq    Mean Sq NumDF  DenDF
@@ -2250,10 +2071,8 @@ anova(model3)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-emm<-emmeans(model3, ~final.mortality|temperature|hardening, adjust = "tukey")
-pairs(emm)
-```
+    emm<-emmeans(model3, ~final.mortality|temperature|hardening, adjust = "tukey")
+    pairs(emm)
 
     ## temperature = 18C, hardening = control:
     ##  contrast      estimate       SE  df t.ratio p.value
@@ -2300,10 +2119,10 @@ pairs(emm)
 
 Significant effects:
 
-- Fresh water at 42°C had higher rates if the oyster died
-- Fresh water temperature at 42°C had higher rates if the oyster died
-- Immune at 42°C had higher rates if the oyster died
-- Tempreature at 42°C had higher rates if oysters died
+-   Fresh water at 42°C had higher rates if the oyster died
+-   Fresh water temperature at 42°C had higher rates if the oyster died
+-   Immune at 42°C had higher rates if the oyster died
+-   Tempreature at 42°C had higher rates if oysters died
 
 Control oysters did NOT have higher metabolic rates if the oyster died.
 No difference in alive vs dead oysters at 18°C.
@@ -2314,43 +2133,37 @@ No difference in alive vs dead oysters at 18°C.
 
 Build a model including all predictors.
 
-``` r
-final_18C<-data%>%
-  filter(time==4)%>%
-  filter(temperature=="18C")
+    final_18C<-data%>%
+      filter(time==4)%>%
+      filter(temperature=="18C")
 
-model4<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_18C)
+    model4<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_18C)
 
-qqPlot(residuals(model4))
-```
+    qqPlot(residuals(model4))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-58-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-59-1.png)
 
     ## [1] 78 35
 
-``` r
-hist(final_18C$value.mm3)
-```
+    hist(final_18C$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-58-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-59-2.png)
 
 Identify using standardized residuals.
 
-``` r
-# Extract raw residuals
-final_18C$raw_resid <- residuals(model4)
+    # Extract raw residuals
+    final_18C$raw_resid <- residuals(model4)
 
-# Standardize residuals
-final_18C$std_resid <- final_18C$raw_resid / sd(final_18C$raw_resid)
+    # Standardize residuals
+    final_18C$std_resid <- final_18C$raw_resid / sd(final_18C$raw_resid)
 
-# Flag potential outliers
-outlier_threshold <- 3
-final_18C$outlier_flag <- abs(final_18C$std_resid) > outlier_threshold
+    # Flag potential outliers
+    outlier_threshold <- 3
+    final_18C$outlier_flag <- abs(final_18C$std_resid) > outlier_threshold
 
-# Filter rows flagged as outliers
-outliers <- final_18C %>% filter(outlier_flag == TRUE)
-print(outliers)
-```
+    # Filter rows flagged as outliers
+    outliers <- final_18C %>% filter(outlier_flag == TRUE)
+    print(outliers)
 
     ## # A tibble: 0 × 16
     ## # Groups:   date, bag, sample, width.mm, length.mm [0]
@@ -2359,46 +2172,38 @@ print(outliers)
     ## #   length.mm <dbl>, final.mortality <chr>, value <dbl>, volume.mm3 <dbl>,
     ## #   value.mm3 <dbl>, raw_resid <dbl>, std_resid <dbl>, outlier_flag <lgl>
 
-``` r
-# Plot standardized residuals
-ggplot(final_18C, aes(x = seq_along(std_resid), y = std_resid)) +
-  geom_point(aes(color = outlier_flag), size = 2) +
-  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
-  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
-  theme_minimal()
-```
+    # Plot standardized residuals
+    ggplot(final_18C, aes(x = seq_along(std_resid), y = std_resid)) +
+      geom_point(aes(color = outlier_flag), size = 2) +
+      geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+      labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+      theme_minimal()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-59-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-60-1.png)
 
 No outliers detected.
 
-``` r
-hist(final_18C$value.mm3)
-```
+    hist(final_18C$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-60-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-61-1.png)
 
 ### Analyze model
 
 Plot raw data.
 
-``` r
-final_18C%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=final.mortality, group=sample))+
-  geom_point(position=position_dodge(0.5))+
-  theme_classic()
-```
+    final_18C%>%
+      ggplot(aes(x=hardening, y=value.mm3, colour=final.mortality, group=sample))+
+      geom_point(position=position_dodge(0.5))+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-61-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-62-1.png)
 
 Analyze total change in fluorescence (fluorescence after 4 hours) and
 comparing those that ended up alive or dead at the end of the trial.
 
-``` r
-model4<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_18C)
+    model4<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_18C)
 
-summary(model4)
-```
+    summary(model4)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -2466,9 +2271,7 @@ summary(model4)
     ## hrdnngmmn:.  0.088 -0.061 -0.061 -0.209  -0.061  -0.567  0.367  0.366          
     ## hrdnngtmp:.  0.099 -0.069 -0.068 -0.067  -0.201  -0.632  0.410  0.408  0.358
 
-``` r
-anova(model4)
-```
+    anova(model4)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                               Sum Sq    Mean Sq NumDF   DenDF F value Pr(>F)
@@ -2476,9 +2279,7 @@ anova(model4)
     ## final.mortality           7.1000e-07 7.1040e-07     1 176.893  0.0985 0.7540
     ## hardening:final.mortality 2.4024e-05 6.0060e-06     4 176.783  0.8327 0.5060
 
-``` r
-rand(model4)
-```
+    rand(model4)
 
     ## ANOVA-like table for random-effects: Single term deletions
     ## 
@@ -2490,11 +2291,9 @@ rand(model4)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-qqPlot(residuals(model4))
-```
+    qqPlot(residuals(model4))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-62-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-63-1.png)
 
     ## [1] 78 35
 
@@ -2507,70 +2306,60 @@ ended up alive and dead by the end of the trial at 18°C.
 
 Plot first with individual points.
 
-``` r
-plot7<-final_18C%>%
+    plot7<-final_18C%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot7
-```
+      ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
+      geom_boxplot(position=position_dodge(0.5))+
+      geom_point(alpha=0.5, position=position_dodge(0.5))+
+      scale_colour_manual(values=c("darkgray", "darkred"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot7
 
-![](resazurin_files/figure-gfm/unnamed-chunk-63-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-64-1.png)
 
-``` r
-plot7a<-final_18C%>%
+    plot7a<-final_18C%>%
 
-  ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  theme_classic()+
-  xlab("Temperature");plot7a
-```
+      ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
+      geom_boxplot(position=position_dodge(0.9))+
+      geom_point(alpha=0.5, position=position_dodge(0.9))+
+      theme_classic()+
+      xlab("Temperature");plot7a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-63-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-64-2.png)
 
 Next plot with mean and sem for each group.
 
-``` r
-plot8<-final_18C%>%
-  group_by(hardening, final.mortality)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-  
-  ggplot(aes(x=hardening, y=mean, color=final.mortality))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot8
-```
+    plot8<-final_18C%>%
+      group_by(hardening, final.mortality)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+      
+      ggplot(aes(x=hardening, y=mean, color=final.mortality))+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
+      geom_point(alpha=0.5, position=position_dodge(0.5))+
+      scale_colour_manual(values=c("darkgray", "darkred"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot8
 
-![](resazurin_files/figure-gfm/unnamed-chunk-64-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-65-1.png)
 
-``` r
-plot8a<-final_18C%>%
-  group_by(hardening, final.mortality)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot8a<-final_18C%>%
+      group_by(hardening, final.mortality)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=final.mortality, y=mean, color=hardening))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.1))+
-  geom_point(alpha=0.5, position=position_dodge(0.1))+
-  geom_line(aes(group=hardening))+
-  theme_classic()+
-  xlab("Final Mortality");plot8a
-```
+      ggplot(aes(x=final.mortality, y=mean, color=hardening))+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.1))+
+      geom_point(alpha=0.5, position=position_dodge(0.1))+
+      geom_line(aes(group=hardening))+
+      theme_classic()+
+      xlab("Final Mortality");plot8a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-64-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-65-2.png)
 
 ### Conduct posthoc tests
 
 #### Effects of mortality within hardening treatment
 
-``` r
-anova(model4)
-```
+    anova(model4)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                               Sum Sq    Mean Sq NumDF   DenDF F value Pr(>F)
@@ -2578,10 +2367,8 @@ anova(model4)
     ## final.mortality           7.1000e-07 7.1040e-07     1 176.893  0.0985 0.7540
     ## hardening:final.mortality 2.4024e-05 6.0060e-06     4 176.783  0.8327 0.5060
 
-``` r
-emm<-emmeans(model4, ~final.mortality|hardening, adjust = "tukey")
-pairs(emm)
-```
+    emm<-emmeans(model4, ~final.mortality|hardening, adjust = "tukey")
+    pairs(emm)
 
     ## hardening = control:
     ##  contrast      estimate       SE  df t.ratio p.value
@@ -2614,43 +2401,37 @@ No differences.
 
 Build a model including all predictors.
 
-``` r
-final_42C<-data%>%
-  filter(time==4)%>%
-  filter(temperature=="42C")
+    final_42C<-data%>%
+      filter(time==4)%>%
+      filter(temperature=="42C")
 
-model5<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_42C)
+    model5<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_42C)
 
-qqPlot(residuals(model5))
-```
+    qqPlot(residuals(model5))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-66-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-67-1.png)
 
     ## [1]  54 115
 
-``` r
-hist(final_42C$value.mm3)
-```
+    hist(final_42C$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-66-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-67-2.png)
 
 Identify using standardized residuals.
 
-``` r
-# Extract raw residuals
-final_42C$raw_resid <- residuals(model5)
+    # Extract raw residuals
+    final_42C$raw_resid <- residuals(model5)
 
-# Standardize residuals
-final_42C$std_resid <- final_42C$raw_resid / sd(final_42C$raw_resid)
+    # Standardize residuals
+    final_42C$std_resid <- final_42C$raw_resid / sd(final_42C$raw_resid)
 
-# Flag potential outliers
-outlier_threshold <- 3
-final_42C$outlier_flag <- abs(final_42C$std_resid) > outlier_threshold
+    # Flag potential outliers
+    outlier_threshold <- 3
+    final_42C$outlier_flag <- abs(final_42C$std_resid) > outlier_threshold
 
-# Filter rows flagged as outliers
-outliers <- final_42C %>% filter(outlier_flag == TRUE)
-print(outliers)
-```
+    # Filter rows flagged as outliers
+    outliers <- final_42C %>% filter(outlier_flag == TRUE)
+    print(outliers)
 
     ## # A tibble: 0 × 16
     ## # Groups:   date, bag, sample, width.mm, length.mm [0]
@@ -2659,44 +2440,36 @@ print(outliers)
     ## #   length.mm <dbl>, final.mortality <chr>, value <dbl>, volume.mm3 <dbl>,
     ## #   value.mm3 <dbl>, raw_resid <dbl>, std_resid <dbl>, outlier_flag <lgl>
 
-``` r
-# Plot standardized residuals
-ggplot(final_42C, aes(x = seq_along(std_resid), y = std_resid)) +
-  geom_point(aes(color = outlier_flag), size = 2) +
-  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
-  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
-  theme_minimal()
-```
+    # Plot standardized residuals
+    ggplot(final_42C, aes(x = seq_along(std_resid), y = std_resid)) +
+      geom_point(aes(color = outlier_flag), size = 2) +
+      geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+      labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+      theme_minimal()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-67-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-68-1.png)
 
-``` r
-hist(final_42C$value.mm3)
-```
+    hist(final_42C$value.mm3)
 
-![](resazurin_files/figure-gfm/unnamed-chunk-68-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-69-1.png)
 
 ### Analyze model
 
 Plot raw data.
 
-``` r
-final_42C%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=final.mortality, group=sample))+
-  geom_point(position=position_dodge(0.5))+
-  theme_classic()
-```
+    final_42C%>%
+      ggplot(aes(x=hardening, y=value.mm3, colour=final.mortality, group=sample))+
+      geom_point(position=position_dodge(0.5))+
+      theme_classic()
 
-![](resazurin_files/figure-gfm/unnamed-chunk-69-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-70-1.png)
 
 Analyze total change in fluorescence (fluorescence after 4 hours) and
 comparing those that ended up alive or dead at the end of the trial.
 
-``` r
-model5<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_42C)
+    model5<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_42C)
 
-summary(model5)
-```
+    summary(model5)
 
     ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
     ## lmerModLmerTest]
@@ -2764,9 +2537,7 @@ summary(model5)
     ## hrdnngmmn:.  0.482 -0.312 -0.339 -0.694  -0.272  -0.677  0.417  0.457          
     ## hrdnngtmp:.  0.374 -0.242 -0.263 -0.264  -0.816  -0.526  0.324  0.355  0.356
 
-``` r
-anova(model5)
-```
+    anova(model5)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                               Sum Sq    Mean Sq NumDF   DenDF F value    Pr(>F)
@@ -2780,9 +2551,7 @@ anova(model5)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-rand(model5)
-```
+    rand(model5)
 
     ## ANOVA-like table for random-effects: Single term deletions
     ## 
@@ -2794,11 +2563,9 @@ rand(model5)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-qqPlot(residuals(model5))
-```
+    qqPlot(residuals(model5))
 
-![](resazurin_files/figure-gfm/unnamed-chunk-70-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-71-1.png)
 
     ## [1]  54 115
 
@@ -2811,70 +2578,60 @@ ended up alive and dead by the end of the trial at 18°C.
 
 Plot first with individual points.
 
-``` r
-plot9<-final_42C%>%
+    plot9<-final_42C%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot9
-```
+      ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
+      geom_boxplot(position=position_dodge(0.5))+
+      geom_point(alpha=0.5, position=position_dodge(0.5))+
+      scale_colour_manual(values=c("darkgray", "darkred"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot9
 
-![](resazurin_files/figure-gfm/unnamed-chunk-71-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-72-1.png)
 
-``` r
-plot9a<-final_42C%>%
+    plot9a<-final_42C%>%
 
-  ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  theme_classic()+
-  xlab("Temperature");plot9a
-```
+      ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
+      geom_boxplot(position=position_dodge(0.9))+
+      geom_point(alpha=0.5, position=position_dodge(0.9))+
+      theme_classic()+
+      xlab("Temperature");plot9a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-71-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-72-2.png)
 
 Next plot with mean and sem for each group.
 
-``` r
-plot9<-final_42C%>%
-  group_by(hardening, final.mortality)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-  
-  ggplot(aes(x=hardening, y=mean, color=final.mortality))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot9
-```
+    plot9<-final_42C%>%
+      group_by(hardening, final.mortality)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+      
+      ggplot(aes(x=hardening, y=mean, color=final.mortality))+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
+      geom_point(alpha=0.5, position=position_dodge(0.5))+
+      scale_colour_manual(values=c("darkgray", "darkred"))+
+      theme_classic()+
+      xlab("Hardening Treatment");plot9
 
-![](resazurin_files/figure-gfm/unnamed-chunk-72-1.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-73-1.png)
 
-``` r
-plot9a<-final_42C%>%
-  group_by(hardening, final.mortality)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+    plot9a<-final_42C%>%
+      group_by(hardening, final.mortality)%>%
+      summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=final.mortality, y=mean, color=hardening))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.1))+
-  geom_point(alpha=0.5, position=position_dodge(0.1))+
-  geom_line(aes(group=hardening), position=position_dodge(0.1))+
-  theme_classic()+
-  xlab("Final Mortality");plot9a
-```
+      ggplot(aes(x=final.mortality, y=mean, color=hardening))+
+      geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.1))+
+      geom_point(alpha=0.5, position=position_dodge(0.1))+
+      geom_line(aes(group=hardening), position=position_dodge(0.1))+
+      theme_classic()+
+      xlab("Final Mortality");plot9a
 
-![](resazurin_files/figure-gfm/unnamed-chunk-72-2.png)<!-- -->
+![](resazurin_files/figure-markdown_strict/unnamed-chunk-73-2.png)
 
 ### Conduct posthoc tests
 
 #### Effects of mortality within hardening treatment
 
-``` r
-anova(model5)
-```
+    anova(model5)
 
     ## Type III Analysis of Variance Table with Satterthwaite's method
     ##                               Sum Sq    Mean Sq NumDF   DenDF F value    Pr(>F)
@@ -2888,10 +2645,8 @@ anova(model5)
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-``` r
-emm<-emmeans(model5, ~final.mortality|hardening, adjust = "tukey")
-pairs(emm)
-```
+    emm<-emmeans(model5, ~final.mortality|hardening, adjust = "tukey")
+    pairs(emm)
 
     ## hardening = control:
     ##  contrast     estimate       SE  df t.ratio p.value

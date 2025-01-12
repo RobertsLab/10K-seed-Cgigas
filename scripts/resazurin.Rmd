@@ -3,13 +3,13 @@ title: 10K seed resazurin metabolic rate analysis
 author: "AS Huffmyer"
 date: '2024'
 output:
-  github_document: null
-  md_document: default
   html_document:
     code_folding: hide
     toc: true
     toc_depth: 6
     toc_float: true
+  md_document: default
+  github_document: null
 editor_options: 
   chunk_output_type: console
 ---
@@ -212,7 +212,6 @@ data%>%
   theme_classic()
 ```
 
-
 Plot against final mortality. 
 
 ```{r}
@@ -234,6 +233,18 @@ data%>%
 ```
 
 Under temperature stress, there appears to be a positive relationship between fluorescence at 4 hrs and final mortality status. This does not appear to show up at 18°C.  
+
+Plot size and mortality relationships. 
+
+```{r}
+data%>%
+  filter(time==4)%>%
+  
+  ggplot(aes(x=volume.mm3, y=final.mortality, colour=final.mortality))+
+  geom_violin()+
+  theme_classic()
+```
+Not much difference if any. 
 
 Set time as a factor. 
 ```{r}
