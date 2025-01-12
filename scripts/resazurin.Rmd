@@ -220,7 +220,7 @@ data%>%
   filter(temperature=="42C")%>%
   
   ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
-  geom_point()+
+  geom_violin()+
   theme_classic()
 
 data%>%
@@ -228,7 +228,7 @@ data%>%
   filter(temperature=="18C")%>%
   
   ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
-  geom_point()+
+  geom_violin()+
   theme_classic()
 ```
 
