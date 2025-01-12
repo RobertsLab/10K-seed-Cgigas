@@ -1,19 +1,20 @@
 ---
-title: 10K seed resazurin survival analysis
+title: "10K seed resazurin survival analysis"
 author: "AS Huffmyer"
 date: '2024'
 output:
+  md_document: default
   html_document:
     code_folding: hide
-    toc: yes
+    toc: true
     toc_depth: 6
-    toc_float: yes
-  pdf_document:
-    keep_tex: yes
-editor_options: 
+    toc_float: true
+  github_document: null
+editor_options:
   chunk_output_type: console
 ---
 
+TO DO: Examine if mortality relates to size, then add size data as random/covariate effect for mortality 
 
 # Set up 
 
