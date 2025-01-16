@@ -15,10 +15,12 @@ editor_options:
 ---
 
 Interpretations tl;dr: 
-- Temperature hardened oysters show less metabolic plasticity and died more under stress 
+- Survival was not different between hardening treatments 
+- Minimal differences in hardening treatment metabolic rates - immune group at ambient temperature had slightly higher rates 
 - Metabolic rates are different in stressed oysters 
-- Metabolic rates are different in those that died vs those that survived under stress 
+- Metabolic rates are different in those that died vs those that survived under stress by 4 h 
 - We can measure changes in metabolism using resazurin assay
+- Metabolic rates can predict mortality at subsequent time point 
 
 
 # Set up 
@@ -40,6 +42,8 @@ library(lmerTest)
 library(car)
 library(effects)
 library(emmeans)
+library(RColorBrewer)
+library(pROC)
 ```
 
 # Load data 
@@ -503,16 +507,20 @@ plot1<-alive_4h_data%>%
   theme_classic()+
   xlab("Hour");plot1
 
+ggsave(plot1, filename="figures/resazurin/hardening_temperature_alive4h_oysters.png", width=8, height=6)
+
 plot1a<-alive_4h_data%>%
 
   ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
   facet_grid(~temperature)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=hardening))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  #scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_brewer(palette=c("Dark2"))+
+  scale_fill_brewer(palette=c("Dark2"))+
   theme_classic()+
   xlab("Hour");plot1a
+
+ggsave(plot1a, filename="figures/resazurin/hardening_temperature_alive4h_oysters-2.png", width=8, height=6)
 ```
 
 Next plot with mean and sem for each group. 
@@ -675,10 +683,12 @@ plot1a<-dead_4h_data%>%
   facet_grid(~temperature)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=hardening))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  #scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_brewer(palette=c("Dark2"))+
+  scale_fill_brewer(palette=c("Dark2"))+
   theme_classic()+
   xlab("Hour");plot1a
+
+ggsave(plot1a, filename="figures/resazurin/hardening_42C_dead4h.png", width=6, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -814,6 +824,8 @@ plot1a<-high_4h_data%>%
   scale_fill_manual(values=c("darkgray", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1a
+
+ggsave(plot1a, filename="figures/resazurin/hardening_42C_mortality_dead4h.png", width=8, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -897,8 +909,6 @@ summary(model4)
 Anova(model4)
 ```
 
-Metabolic rate and temperature impact mortality status at the next time point. 
-
 ```{r}
 plot(Effect(c("hardening"), model4))
 ```
@@ -924,10 +934,31 @@ model_pred1 <- glmer(next_status ~ scale(value.mm3) * hardening + (1|bag:sample)
 # Generate predicted probabilities
 model_data$predicted_mortality <- predict(model_pred1, type = "response")
 
+# Compute AUC
+roc_curve <- roc(model_data$next_status, model_data$predicted_mortality)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", round(auc_value, 3)))
+
+# Compute accuracy with a threshold of 0.5
+model_data$predicted_class <- ifelse(model_data$predicted_mortality > 0.5, 1, 0)
+accuracy <- mean(model_data$predicted_class == model_data$next_status)
+print(paste("Accuracy:", round(accuracy, 3)))
+
+# Plot the ROC curve
+roc_plot <- ggroc(roc_curve) +
+  labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_classic();roc_plot
+
+# Add confidence intervals for ROC curve
+ci_auc <- ci.auc(roc_curve)
+print(paste("AUC 95% CI:", round(ci_auc[1], 3), "-", round(ci_auc[3], 3)))
+
 # Plot
 plot12<-ggplot(model_data, aes(x = value.mm3, y = predicted_mortality, color = hardening, fill = hardening)) +
   geom_point(aes(y = next_status), alpha = 0.6, position = position_jitter(height = 0.03)) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  scale_colour_brewer(palette=c("Dark2"))+
+  scale_fill_brewer(palette=c("Dark2"))+
   labs(
     title = "Incubation Mortality Risk [4 h]",
     x = expression(paste(Delta, " Fluorescence")),
@@ -936,32 +967,11 @@ plot12<-ggplot(model_data, aes(x = value.mm3, y = predicted_mortality, color = h
     fill = "Hardening"
   ) +
   theme_classic();plot12
+
+ggsave(plot12, filename="figures/resazurin/hardening_mortality-risk_42C_dead4h.png", width=8, height=4)
 ```
 
 Fresh water temperature hardened oysters may have been more metabolically susceptible to stress. 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ## Analysis of metabolic rates in oysters that lived through the entire 24 h trial 
 
@@ -1065,16 +1075,20 @@ plot1<-alive_24h_data%>%
   theme_classic()+
   xlab("Hour");plot1
 
+ggsave(plot1, filename="figures/resazurin/hardening_temperature_alive24h.png", width=8, height=4)
+
 plot1a<-alive_24h_data%>%
 
   ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
   facet_grid(~temperature)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=hardening))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  #scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_brewer(palette=c("Dark2"))+
+  scale_fill_brewer(palette=c("Dark2"))+
   theme_classic()+
   xlab("Hour");plot1a
+
+ggsave(plot1a, filename="figures/resazurin/hardening_temperature_alive24h-2.png", width=8, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -1132,26 +1146,6 @@ Significant effects:
 - At time 2, control and temperature were NOT different by temperature 
 - At time 3, control was not different 
 - At time 4, all were different 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ## Analysis of metabolic rates in oysters that lived through the 4h incubation but died by 24 h  
@@ -1256,16 +1250,20 @@ plot1<-dead_24h_data%>%
   theme_classic()+
   xlab("Hour");plot1
 
+ggsave(plot1, filename="figures/resazurin/hardening_temperature_alive4h-dead24h.png", width=8, height=4)
+
 plot1a<-dead_24h_data%>%
 
   ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
   facet_grid(~temperature)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=hardening))+
-  #scale_colour_manual(values=c("cyan4", "orange"))+
-  #scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_brewer(palette=c("Dark2"))+
+  scale_fill_brewer(palette=c("Dark2"))+
   theme_classic()+
   xlab("Hour");plot1a
+
+ggsave(plot1a, filename="figures/resazurin/hardening_temperature_alive4h-dead24h-1.png", width=8, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -1324,13 +1322,6 @@ Significant effects:
 - At time 2, 3, and 4, all were different 
 
 
-
-
-
-
-
-
-
 ## Analysis of 24 h mortality risk based on metabolic rate under high temperature in 4 h trial between hardening treatments
 
 ```{r}
@@ -1386,11 +1377,32 @@ model_pred <- glmer(next_status ~ scale(value.mm3) * temperature * hardening + (
 # Generate predicted probabilities
 data_lag$predicted_mortality <- predict(model_pred, type = "response")
 
+# Compute AUC
+roc_curve <- roc(data_lag$next_status, data_lag$predicted_mortality)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", round(auc_value, 3)))
+
+# Compute accuracy with a threshold of 0.5
+data_lag$predicted_class <- ifelse(data_lag$predicted_mortality > 0.5, 1, 0)
+accuracy <- mean(data_lag$predicted_class == data_lag$next_status)
+print(paste("Accuracy:", round(accuracy, 3)))
+
+# Plot the ROC curve
+roc_plot <- ggroc(roc_curve) +
+  labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_classic();roc_plot
+
+# Add confidence intervals for ROC curve
+ci_auc <- ci.auc(roc_curve)
+print(paste("AUC 95% CI:", round(ci_auc[1], 3), "-", round(ci_auc[3], 3)))
+
 # Plot
 plot12<-ggplot(data_lag, aes(x = value.mm3, y = predicted_mortality, color = hardening, fill = hardening)) +
   facet_wrap(~temperature, scales="free_x")+
   geom_point(aes(y = next_status), alpha = 0.6, position = position_jitter(height = 0.03)) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  scale_colour_brewer(palette=c("Dark2"))+
+  scale_fill_brewer(palette=c("Dark2"))+
   labs(
     title = "",
     x = expression(paste(Delta, " Fluorescence")),
@@ -1399,28 +1411,10 @@ plot12<-ggplot(data_lag, aes(x = value.mm3, y = predicted_mortality, color = har
     fill = "Hardening"
   ) +
   theme_classic();plot12
+
+ggsave(plot12, filename="figures/resazurin/hardening_mortality-risk_dead24h.png", width=10, height=5)
+
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # Analysis: Hardening as a random effect 
@@ -1528,6 +1522,8 @@ plot1<-alive_4h_data%>%
   scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
   xlab("Hour");plot1
+
+ggsave(plot1, filename="figures/resazurin/temperature_alive4h.png", width=5, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -1665,6 +1661,8 @@ plot1a<-dead_4h_data%>%
   scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
   xlab("Hour");plot1a
+
+ggsave(filename="figures/resazurin/tempreature_dead4h.png", plot1a, width=5, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -1796,6 +1794,8 @@ plot1a<-high_4h_data%>%
   scale_fill_manual(values=c("darkgray", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1a
+
+ggsave(plot1a, filename="figures/resazurin/temperature_mortality_4h.png", width=5, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -1881,6 +1881,25 @@ model_pred1 <- glmer(next_status ~ scale(value.mm3) + (1|hardening) + (1|bag:sam
 # Generate predicted probabilities
 model_data$predicted_mortality <- predict(model_pred1, type = "response")
 
+# Compute AUC
+roc_curve <- roc(data_lag$next_status, data_lag$predicted_mortality)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", round(auc_value, 3)))
+
+# Compute accuracy with a threshold of 0.5
+data_lag$predicted_class <- ifelse(data_lag$predicted_mortality > 0.5, 1, 0)
+accuracy <- mean(data_lag$predicted_class == data_lag$next_status)
+print(paste("Accuracy:", round(accuracy, 3)))
+
+# Plot the ROC curve
+roc_plot <- ggroc(roc_curve) +
+  labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_classic();roc_plot
+
+# Add confidence intervals for ROC curve
+ci_auc <- ci.auc(roc_curve)
+print(paste("AUC 95% CI:", round(ci_auc[1], 3), "-", round(ci_auc[3], 3)))
+
 # Plot
 plot12<-ggplot(model_data, aes(x = value.mm3, y = predicted_mortality)) +
   geom_point(aes(y = next_status), alpha = 0.5, position = position_jitter(height = 0.03), colour="darkgray") +
@@ -1891,6 +1910,8 @@ plot12<-ggplot(model_data, aes(x = value.mm3, y = predicted_mortality)) +
     y = "Probability of Mortality"
   ) +
   theme_classic();plot12
+
+ggsave(plot12, filename="figures/resazurin/mortality_risk_metabolic_rate_42C_4h.png", width=5, height=4)
 ```
 
 
@@ -1991,6 +2012,8 @@ plot1<-alive_24h_data%>%
   scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
   xlab("Hour");plot1
+
+ggsave(plot1, filename="figures/resazurin/temperature_alive24h.png", width=5, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -2119,6 +2142,8 @@ plot1<-dead_24h_data%>%
   scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
   xlab("Hour");plot1
+
+ggsave(plot1, filename="figures/resazurin/temperature_alive4h_dead24h.png", width=5, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -2201,6 +2226,25 @@ model_pred <- glmer(next_status ~ scale(value.mm3) * temperature + (1|hardening)
 # Generate predicted probabilities
 data_lag$predicted_mortality <- predict(model_pred, type = "response")
 
+# Compute AUC
+roc_curve <- roc(data_lag$next_status, data_lag$predicted_mortality)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", round(auc_value, 3)))
+
+# Compute accuracy with a threshold of 0.5
+data_lag$predicted_class <- ifelse(data_lag$predicted_mortality > 0.5, 1, 0)
+accuracy <- mean(data_lag$predicted_class == data_lag$next_status)
+print(paste("Accuracy:", round(accuracy, 3)))
+
+# Plot the ROC curve
+roc_plot <- ggroc(roc_curve) +
+  labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_classic();roc_plot
+
+# Add confidence intervals for ROC curve
+ci_auc <- ci.auc(roc_curve)
+print(paste("AUC 95% CI:", round(ci_auc[1], 3), "-", round(ci_auc[3], 3)))
+
 # Plot
 plot12<-ggplot(data_lag, aes(x = value.mm3, y = predicted_mortality, color = temperature, fill = temperature)) +
   geom_point(aes(y = next_status), alpha = 0.6, position = position_jitter(height = 0.03)) +
@@ -2215,6 +2259,8 @@ plot12<-ggplot(data_lag, aes(x = value.mm3, y = predicted_mortality, color = tem
     fill = "Temperature"
   ) +
   theme_classic();plot12
+
+ggsave(plot12, filename="figures/resazurin/temperature_mortality-risk_alive4h_dead24h.png", width=5, height=4)
 ```
 
 In those that died during the trial, elevated metabolism was a high mortality risk.
@@ -2314,8 +2360,12 @@ plot1<-mortality_data%>%
   ggplot(aes(x=time, y=value.mm3, color=mortality, fill=mortality))+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=mortality))+
+  scale_colour_manual(values=c("darkgray", "darkred", "red"))+
+  scale_fill_manual(values=c("darkgray", "darkred", "red"))+
   theme_classic()+
   xlab("Hour");plot1
+
+ggsave(plot1, filename="figures/resazurin/mortality_metabolic-rate_comparison_42C.png", width=5, height=4)
 ```
 
 Next plot with mean and sem for each group. 
@@ -2346,3 +2396,143 @@ pairs(emm)
 Significant effects: 
 
 - Those that died by 4 h had higher mortality rates than those that survived or survived until 24 h. 
+
+# Analysis: Survival and classification 
+
+Look at mortality effects over time. 
+
+```{r}
+surv<-read_excel("data/survival/survival_resazurin.xlsx")
+
+surv_final<-surv%>%
+  pivot_longer(names_to="time", values_to="status", cols=`0`:`24`)%>%
+  mutate(time=as.numeric(time))%>%
+  rename(date=date.resazurin, sample=oyster)%>%
+  mutate(sample=as.character(sample))%>%
+  filter(time=="24")
+```
+
+## Mortality by temperature  
+
+```{r}
+surv_data<-main_data%>%
+  ungroup()%>%
+  select(c(date, bag, sample, hardening, temperature, time, status))
+
+#add 24 h survival data 
+surv_data<-rbind(surv_final, surv_data)
+
+surv_data<-surv_data%>%
+  arrange(date, bag, sample)%>%
+  mutate(time=as.numeric(as.character(time)))%>%
+  arrange(date, bag, sample, time)
+
+str(surv_data)
+
+# Logistic regression model for predictions
+model_surv <- glmer(status ~ time * temperature + (1|hardening/bag) + (1|bag:sample), family = binomial(link = "logit"), data = surv_data)
+
+# Generate predicted probabilities
+surv_data$predicted_mortality <- predict(model_surv, type = "response")
+
+# Plot
+plot3<-ggplot(surv_data, aes(x = as.numeric(time), y = predicted_mortality, color = temperature, fill = temperature)) +
+  geom_point(aes(y = status), alpha = 0.6, position = position_jitter(height = 0.03)) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  labs(
+    title = "",
+    y = "Probability of Mortality",
+  ) +
+  theme_classic();plot3
+
+ggsave(plot3, filename="figures/resazurin/survival_temperature.png", width=5, height=4)
+```
+
+View model results
+```{r}
+# Summary of the model
+summary(model_surv)
+Anova(model_surv)
+```
+
+Temperature and time affect mortality. 
+
+## Mortality by temperature and hardening
+
+```{r}
+# Logistic regression model for predictions
+model_surv_hard <- glmer(status ~ time + hardening * temperature + (1|bag) + (1|bag:sample), family = binomial(link = "logit"), data = surv_data)
+
+# Generate predicted probabilities
+surv_data$predicted_mortality <- predict(model_surv_hard, type = "response")
+
+# Evaluate model performance: AUC and accuracy
+
+# Compute AUC
+roc_curve <- roc(surv_data$status, surv_data$predicted_mortality)
+auc_value <- auc(roc_curve)
+print(paste("AUC:", round(auc_value, 3)))
+
+# Compute accuracy with a threshold of 0.5
+surv_data$predicted_class <- ifelse(surv_data$predicted_mortality > 0.5, 1, 0)
+accuracy <- mean(surv_data$predicted_class == surv_data$status)
+print(paste("Accuracy:", round(accuracy, 3)))
+
+# Plot the ROC curve
+roc_plot <- ggroc(roc_curve) +
+  labs(title = "ROC Curve", x = "False Positive Rate", y = "True Positive Rate") +
+  theme_classic();roc_plot
+
+# Add confidence intervals for ROC curve
+ci_auc <- ci.auc(roc_curve)
+print(paste("AUC 95% CI:", round(ci_auc[1], 3), "-", round(ci_auc[3], 3)))
+
+# Plot
+plot3a<-ggplot(surv_data, aes(x = as.numeric(time), y = predicted_mortality, color = hardening, fill = hardening)) +
+  facet_wrap(~temperature)+
+  geom_point(aes(y = status), alpha = 0.6, position = position_jitter(height = 0.03)) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  scale_colour_brewer(palette="Dark2")+
+  scale_fill_brewer(palette="Dark2")+
+  labs(
+    title = "",
+    y = "Probability of Mortality",
+  ) +
+  theme_classic();plot3a
+
+ggsave(plot3a, filename="figures/resazurin/survival_hardening_temperature.png", width=8, height=4)
+```
+
+View model results
+```{r}
+# Summary of the model
+summary(model_surv_hard)
+Anova(model_surv_hard)
+```
+
+Hardening does not affect survival.  
+
+```{r}
+# Plot
+plot3b<-ggplot(surv_data, aes(x = as.numeric(time), y = predicted_mortality, color = temperature, fill = temperature)) +
+  facet_wrap(~hardening)+
+  geom_point(aes(y = status), alpha = 0.6, position = position_jitter(height = 0.03)) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  labs(
+    title = "",
+    y = "Probability of Mortality",
+  ) +
+  theme_classic();plot3b
+
+ggsave(plot3b, filename="figures/resazurin/survival_hardening_temperature2.png", width=8, height=4)
+```
+
+No effect of hardening on mortality. 
+
+There is an effect of temperature on mortality with highest mortality at 24 hours.  
+
+
