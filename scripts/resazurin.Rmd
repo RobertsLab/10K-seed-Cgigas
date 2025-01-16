@@ -20,6 +20,7 @@ Interpretations tl;dr:
 - Metabolic rates are different in those that died vs those that survived under stress 
 - We can measure changes in metabolism using resazurin assay
 
+
 # Set up 
 
 Set up workspace, set options, and load required packages.    
@@ -95,6 +96,16 @@ main_data<-main_data%>%
     final.mortality == 1 ~ "dead",
     TRUE ~ as.character(final.mortality)  # To handle any other values
   ))
+
+#add a column for mortality at the 4 hour time point 
+main_data<-main_data%>%
+  mutate(incubation.mortality = case_when(
+    time == 4 & status == 0 ~ "alive", 
+    time == 4 & status == 1 ~ "dead",
+  ))%>%
+  group_by(date, bag, sample) %>% # Group by sample to fill within each sample
+  fill(incubation.mortality, .direction = "downup") %>% # Fill both downward and upward
+  ungroup()
 ```
 
 # Data preparation 
@@ -221,6 +232,16 @@ main_data%>%
   
   ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
   geom_violin()+
+  ggtitle("final mortality")+
+  theme_classic()
+
+main_data%>%
+  filter(time==4)%>%
+  filter(temperature=="42C")%>%
+  
+  ggplot(aes(x=incubation.mortality, y=value.mm3, colour=incubation.mortality))+
+  geom_violin()+
+  ggtitle("incubation mortality")+
   theme_classic()
 
 main_data%>%
@@ -229,10 +250,18 @@ main_data%>%
   
   ggplot(aes(x=final.mortality, y=value.mm3, colour=final.mortality))+
   geom_violin()+
+  ggtitle("final mortality")+
+  theme_classic()
+
+main_data%>%
+  filter(time==4)%>%
+  filter(temperature=="18C")%>%
+  
+  ggplot(aes(x=incubation.mortality, y=value.mm3, colour=incubation.mortality))+
+  geom_violin()+
+  ggtitle("incubation mortality")+
   theme_classic()
 ```
-
-Under temperature stress, there appears to be a positive relationship between fluorescence at 4 hrs and final mortality status. This does not appear to show up at 18°C.  
 
 Plot size and mortality relationships. 
 
@@ -242,16 +271,24 @@ main_data%>%
   
   ggplot(aes(x=volume.mm3, y=final.mortality, colour=final.mortality))+
   geom_violin()+
+  ggtitle("final mortality")+
+  theme_classic()
+
+main_data%>%
+  filter(time==4)%>%
+  
+  ggplot(aes(x=volume.mm3, y=incubation.mortality, colour=incubation.mortality))+
+  geom_violin()+
+  ggtitle("incubation mortality")+
   theme_classic()
 ```
-Not much difference if any. 
 
 Set time as a factor. 
 ```{r}
 main_data$time<-as.factor(main_data$time)
 ```
 
-# Analysis 
+# Analysis: Effects of hardening treatments 
 
 ## Examine size effects 
 
@@ -360,42 +397,52 @@ corrplot42C<-ggplot(final%>%filter(temperature=="42C"), aes(x = volume.mm3, y = 
 
 Size is important to consider, so we will normalize metabolic rates to size using value.mm3 generated above. 
 
-## Model effects of time, hardening, and temperature
+## Analysis of metabolic rates in oysters that lived through the 4 h trial 
 
 ```{r}
-data<-main_data
+alive_4h_data<-main_data%>%
+  filter(incubation.mortality=="alive")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
+
+#view sample size 
+alive_4h_data%>%
+  group_by(time, temperature, hardening)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
 ```
 
+We have n>10 for all groups at all time point of oysters that lived through the 4 hour trial.  
 
 ### Detect outliers 
 
 Build a model including all predictors. 
 ```{r}
-model<-lmer(value.mm3 ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=data)
+model<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=alive_4h_data)
 
 qqPlot(residuals(model))
 
-hist(data$value.mm3)
+hist(alive_4h_data$value.mm3)
 ```
 
 Identify using standardized residuals. 
 ```{r}
 # Extract raw residuals
-data$raw_resid <- residuals(model)
+alive_4h_data$raw_resid <- residuals(model)
 
 # Standardize residuals
-data$std_resid <- data$raw_resid / sd(data$raw_resid)
+alive_4h_data$std_resid <- alive_4h_data$raw_resid / sd(alive_4h_data$raw_resid)
 
 # Flag potential outliers
 outlier_threshold <- 3
-data$outlier_flag <- abs(data$std_resid) > outlier_threshold
+alive_4h_data$outlier_flag <- abs(alive_4h_data$std_resid) > outlier_threshold
 
 # Filter rows flagged as outliers
-outliers <- data %>% filter(outlier_flag == TRUE)
+outliers <- alive_4h_data %>% filter(outlier_flag == TRUE)
 print(outliers)
 
 # Plot standardized residuals
-ggplot(data, aes(x = seq_along(std_resid), y = std_resid)) +
+ggplot(alive_4h_data, aes(x = seq_along(std_resid), y = std_resid)) +
   geom_point(aes(color = outlier_flag), size = 2) +
   geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
   labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
@@ -404,26 +451,19 @@ ggplot(data, aes(x = seq_along(std_resid), y = std_resid)) +
 
 Remove identified outliers. 
 ```{r}
-data<-data%>%
+alive_4h_data<-alive_4h_data%>%
   filter(!outlier_flag==TRUE)
 ```
 
 ```{r}
-hist(data$value.mm3)
-```
-
-Manually remove outlier of 1 high observation in temperature hardened oysters (alive) at 42°C at the final time point.  
-
-```{r}
-data<-data%>%
-  filter(!c(time=="4"& hardening=="temperature" & final.mortality=="alive" & temperature=="42C" & value.mm3>0.0001))
+hist(alive_4h_data$value.mm3)
 ```
 
 ### Analyze model  
 
 Plot raw data. 
 ```{r}
-data%>%
+alive_4h_data%>%
   ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
   facet_wrap(~bag*date*hardening)+
   geom_point()+
@@ -432,7 +472,7 @@ data%>%
 ```
 
 ```{r}
-model<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|hardening:bag) + (1|date:bag:sample), data=data)
+model<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=alive_4h_data)
 
 summary(model)
 anova(model)
@@ -441,16 +481,18 @@ rand(model)
 qqPlot(residuals(model))
 ```
 
-Significant effects of time x temperature x hardening, indicating different slopes in metabolic rate between temperatures modulated by hardening treatment. 
+Significant effects of time x temperature x hardening, indicating different slopes in metabolic rate between temperatures modulated by hardening treatment in those that lived through the 4 h incubation. 
+
+Return to troubleshooting residuals for this model.  
 
 ### Plot data 
 
-Plot mean response for each hardening treatment across time at 18°C and 42°C. 
+Plot mean response for each hardening treatment across time at 18°C and 42°C in those that were alive through the 4 hour incubation.   
 
 Plot first with individual points with geom smooth lines. 
 
 ```{r}
-plot1<-data%>%
+plot1<-alive_4h_data%>%
 
   ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
   facet_grid(~hardening)+
@@ -461,7 +503,7 @@ plot1<-data%>%
   theme_classic()+
   xlab("Hour");plot1
 
-plot1a<-data%>%
+plot1a<-alive_4h_data%>%
 
   ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
   facet_grid(~temperature)+
@@ -476,7 +518,7 @@ plot1a<-data%>%
 Next plot with mean and sem for each group. 
 
 ```{r}
-plot2<-data%>%
+plot2<-alive_4h_data%>%
   group_by(temperature, hardening, time)%>%
   summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
@@ -490,7 +532,7 @@ plot2<-data%>%
   theme_classic()+
   xlab("Hour");plot2
 
-plot2a<-data%>%
+plot2a<-alive_4h_data%>%
   group_by(temperature, hardening, time)%>%
   summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
@@ -513,14 +555,9 @@ anova(model)
 
 emm<-emmeans(model, ~hardening|temperature|time, adjust = "tukey")
 pairs(emm)
-
 ```
 
-Significant effects: 
-
-- Time 4 at 18°C: Immune higher than control and fresh-water-temperature. 
-
-No differences at 42°C are significant.  
+No differences between treatments within time are significant.  
 
 #### Effects of temperature treatment within hardening  
 ```{r}
@@ -530,72 +567,91 @@ pairs(emm)
 
 Significant effects: 
 
-- Time 1: Control lower at 18°C
-- Time 2: Fresh-water-temperature and immune lower at 42°C
-- Time 3: All groups lower at 42°C
-- Time 4: All groups lower at 42°C 
+- Time 2: All treatments higher at 18°C than 42°C in all treatments except control
+- Time 3: All treatments higher at 18°C 
+- Time 4: All treatments higher at 18°C 
 
-## Model at time final without mortality status 
+## Analysis of metabolic rates between those that died during the 4 h trial
+
+```{r}
+dead_4h_data<-main_data%>%
+  filter(incubation.mortality=="dead")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
+
+#view sample size 
+dead_4h_data%>%
+  group_by(time, temperature, hardening)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
+```
+
+We have n>10 for all groups at 42°C, but with <n=5 for those that lived. Proceeding only with those at 42°C. 
+
+```{r}
+dead_4h_data<-dead_4h_data%>%
+  filter(temperature=="42C")
+```
 
 ### Detect outliers 
 
 Build a model including all predictors. 
 ```{r}
-final<-data%>%
-  filter(time==4)
+model<-lmer(sqrt(value.mm3) ~ time * hardening + (1|bag) + (1|date:bag:sample), data=dead_4h_data)
 
-model2<-lmer(sqrt(value.mm3) ~ temperature * hardening + (1|hardening:bag), data=final)
-summary(model2)
+qqPlot(residuals(model))
 
-qqPlot(residuals(model2))
-
-hist(final$value.mm3)
+hist(dead_4h_data$value.mm3)
 ```
 
 Identify using standardized residuals. 
 ```{r}
 # Extract raw residuals
-final$raw_resid <- residuals(model2)
+dead_4h_data$raw_resid <- residuals(model)
 
 # Standardize residuals
-final$std_resid <- final$raw_resid / sd(final$raw_resid)
+dead_4h_data$std_resid <- dead_4h_data$raw_resid / sd(dead_4h_data$raw_resid)
 
 # Flag potential outliers
 outlier_threshold <- 3
-final$outlier_flag <- abs(final$std_resid) > outlier_threshold
+dead_4h_data$outlier_flag <- abs(dead_4h_data$std_resid) > outlier_threshold
 
 # Filter rows flagged as outliers
-outliers <- final %>% filter(outlier_flag == TRUE)
+outliers <- dead_4h_data %>% filter(outlier_flag == TRUE)
 print(outliers)
 
 # Plot standardized residuals
-ggplot(final, aes(x = seq_along(std_resid), y = std_resid)) +
+ggplot(dead_4h_data, aes(x = seq_along(std_resid), y = std_resid)) +
   geom_point(aes(color = outlier_flag), size = 2) +
   geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
   labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
   theme_minimal()
 ```
 
-No outliers detected. 
-
+Remove identified outliers. 
 ```{r}
-hist(final$value.mm3)
+dead_4h_data<-dead_4h_data%>%
+  filter(!outlier_flag==TRUE)
 ```
 
-### Analyze model 
+```{r}
+hist(dead_4h_data$value.mm3)
+```
+
+### Analyze model  
 
 Plot raw data. 
 ```{r}
-final%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=temperature, group=sample))+
+dead_4h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
+  facet_wrap(~bag*date*hardening)+
   geom_point()+
+  geom_line()+
   theme_classic()
 ```
 
-Analyze total change in fluorescence (fluorescence after 4 hours).  
-
 ```{r}
-model2<-lmer(sqrt(value.mm3) ~ temperature * hardening + (1|hardening:bag), data=final)
+model2<-lmer(sqrt(value.mm3) ~ time * hardening + (1|bag) + (1|date:bag:sample), data=dead_4h_data)
 
 summary(model2)
 anova(model2)
@@ -604,150 +660,133 @@ rand(model2)
 qqPlot(residuals(model2))
 ```
 
+Significant effects of time x hardening in oysters that died within the 4 h incubation. 
+
 ### Plot data 
 
-Plot mean response for each hardening treatment at 18°C and 42°C. 
+Plot mean response for each hardening treatment across time at 42°C in those that died during the 4 hour incubation.   
 
-Plot first with individual points. 
+Plot first with individual points with geom smooth lines. 
 
 ```{r}
-plot3<-final%>%
+plot1a<-dead_4h_data%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=temperature))+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot3
-
-plot3a<-final%>%
-
-  ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
+  ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
+  facet_grid(~temperature)+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=hardening))+
   #scale_colour_manual(values=c("cyan4", "orange"))+
+  #scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
-  xlab("Temperature");plot3a
+  xlab("Hour");plot1a
 ```
 
 Next plot with mean and sem for each group. 
 
 ```{r}
-plot4<-final%>%
-  group_by(temperature, hardening)%>%
+plot2a<-dead_4h_data%>%
+  group_by(temperature, hardening, time)%>%
   summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=hardening, y=mean, color=temperature, fill=temperature))+
-  geom_point(alpha=0.5)+
+  ggplot(aes(x=time, y=mean, color=hardening, fill=hardening))+
+  facet_grid(~temperature)+
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot4
-
-plot4a<-final%>%
-  group_by(temperature, hardening)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-
-  ggplot(aes(x=temperature, y=mean, color=hardening, fill=hardening))+
-  geom_point(alpha=0.5, position=position_dodge(0.7))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.7))+
+  geom_point(alpha=0.5)+
+  geom_line(aes(group=hardening))+
   #scale_colour_manual(values=c("cyan4", "orange"))+
   #scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
-  xlab("Temperature");plot4a
+  xlab("Hour");plot2a
 ```
 
-### Conduct posthoc tests 
+### Conduct post hoc tests
 
 #### Effects of hardening treatment within temperature 
 ```{r}
 anova(model2)
 
-emm<-emmeans(model2, ~hardening|temperature, adjust = "tukey")
+emm<-emmeans(model2, ~hardening|time, adjust = "tukey")
 pairs(emm)
-
 ```
 
-Significant effects: 
+No differences between treatments within time are significant.  
 
-- 18°C: Immune higher than control
+## Analysis of metabolic differences in live vs dead oysters during the 4 h trial at 42°C
 
-No differences at 42°C are significant.  
-
-#### Effects of temperature treatment within hardening  
 ```{r}
-emm<-emmeans(model, ~temperature|hardening, adjust = "tukey")
-pairs(emm)
+high_4h_data<-main_data%>%
+  filter(temperature=="42C")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
 
+#view sample size 
+high_4h_data%>%
+  group_by(time, temperature, hardening)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
 ```
 
-Significant effects: 
-
-- Control is different between temperatures
-- Fresh water, fresh water temperature, immune, and temperature hardening are all lower at 42°C
-
-## Model at time final with mortality status 
+Using only 42°C, because we only had 1-4 oysters that died at 18°C, making alive vs dead comparisons at 18°C not possible. This is expected since we do not expect mortality at 18°C.  
 
 ### Detect outliers 
 
 Build a model including all predictors. 
 ```{r}
-final_mort<-data%>%
-  filter(time==4)
-
-model3<-lmer(sqrt(value.mm3) ~ temperature * hardening * final.mortality + (1|hardening:bag), data=final_mort)
+model3<-lmer(sqrt(value.mm3) ~ time * hardening * incubation.mortality + (1|bag) + (1|date:bag:sample), data=high_4h_data)
 
 qqPlot(residuals(model3))
 
-hist(final_mort$value.mm3)
+hist(high_4h_data$value.mm3)
 ```
 
 Identify using standardized residuals. 
 ```{r}
 # Extract raw residuals
-final_mort$raw_resid <- residuals(model3)
+high_4h_data$raw_resid <- residuals(model3)
 
 # Standardize residuals
-final_mort$std_resid <- final_mort$raw_resid / sd(final_mort$raw_resid)
+high_4h_data$std_resid <- high_4h_data$raw_resid / sd(high_4h_data$raw_resid)
 
 # Flag potential outliers
 outlier_threshold <- 3
-final_mort$outlier_flag <- abs(final_mort$std_resid) > outlier_threshold
+high_4h_data$outlier_flag <- abs(high_4h_data$std_resid) > outlier_threshold
 
 # Filter rows flagged as outliers
-outliers <- final_mort %>% filter(outlier_flag == TRUE)
+outliers <- high_4h_data %>% filter(outlier_flag == TRUE)
 print(outliers)
 
 # Plot standardized residuals
-ggplot(final_mort, aes(x = seq_along(std_resid), y = std_resid)) +
+ggplot(high_4h_data, aes(x = seq_along(std_resid), y = std_resid)) +
   geom_point(aes(color = outlier_flag), size = 2) +
   geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
   labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
   theme_minimal()
 ```
 
-No outliers detected, use the "final" data frame since no observations needed to be removed.  
-
+Remove identified outliers. 
 ```{r}
-hist(final$value.mm3)
+high_4h_data<-high_4h_data%>%
+  filter(!outlier_flag==TRUE)
 ```
 
-### Analyze model 
+```{r}
+hist(high_4h_data$value.mm3)
+```
+
+### Analyze model  
 
 Plot raw data. 
 ```{r}
-final%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=temperature, group=sample))+
-  facet_wrap(~final.mortality)+
-  geom_point(position=position_dodge(0.5))+
+high_4h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
+  facet_wrap(~bag*date*hardening)+
+  geom_point()+
+  geom_line()+
   theme_classic()
 ```
 
-Analyze total change in fluorescence (fluorescence after 4 hours) for each treatment and comparing those that ended up alive or dead at the end of the trial.    
-
 ```{r}
-model3<-lmer(sqrt(value.mm3) ~ temperature * hardening * final.mortality + (1|hardening:bag), data=final)
+model3<-lmer(sqrt(value.mm3) ~ time * hardening * incubation.mortality + (1|bag) + (1|date:bag:sample), data=high_4h_data)
 
 summary(model3)
 anova(model3)
@@ -755,301 +794,251 @@ rand(model3)
 
 qqPlot(residuals(model3))
 ```
-Significant effects of temperature x hardening and temperature x mortality. Metabolic rate depending on mortality is not different between hardening treatments (no hardening x mortality).  
+
+Significant effects of time x hardening x mortality in oysters during the 4 h incubation. 
 
 ### Plot data 
 
-Plot mean response for each hardening treatment at 18°C and 42°C between oysters that ended up alive and dead by the end of the trial.  
+Plot mean response for each hardening treatment across time in those that died or remained alive during the 4 hour incubation.   
 
-Plot first with individual points. 
+Plot first with individual points with geom smooth lines. 
 
 ```{r}
-plot5<-final%>%
+plot1a<-high_4h_data%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
-  facet_grid(~temperature)+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot5
-
-plot5a<-final%>%
-
-  ggplot(aes(x=hardening, y=value.mm3, color=temperature))+
-  facet_grid(~final.mortality)+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Temperature");plot5a
-
-plot5b<-final%>%
-
-  ggplot(aes(x=final.mortality, y=value.mm3, color=temperature))+
+  ggplot(aes(x=time, y=value.mm3, color=incubation.mortality, fill=incubation.mortality))+
   facet_grid(~hardening)+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=incubation.mortality))+
+  scale_colour_manual(values=c("darkgray", "darkred"))+
+  scale_fill_manual(values=c("darkgray", "darkred"))+
   theme_classic()+
-  xlab("Final Mortality");plot5b
+  xlab("Hour");plot1a
 ```
 
 Next plot with mean and sem for each group. 
 
 ```{r}
-plot6<-final%>%
-  group_by(hardening, final.mortality, temperature)%>%
+plot2a<-high_4h_data%>%
+  group_by(incubation.mortality, hardening, time)%>%
   summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=hardening, y=mean, color=final.mortality))+
-  facet_grid(~temperature)+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot6
-
-plot6a<-final%>%
-  group_by(hardening, final.mortality, temperature)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-
-  ggplot(aes(x=hardening, y=mean, color=temperature))+
-  facet_grid(~final.mortality)+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  theme_classic()+
-  xlab("Hardening");plot6a
-
-plot6b<-final%>%
-  group_by(hardening, final.mortality, temperature)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-
-  ggplot(aes(x=final.mortality, y=mean, color=temperature))+
+  ggplot(aes(x=time, y=mean, color=incubation.mortality, fill=incubation.mortality))+
   facet_grid(~hardening)+
-  geom_line(aes(group=temperature), position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.9))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_point(alpha=0.5)+
+  geom_line(aes(group=incubation.mortality))+
+  scale_colour_manual(values=c("darkgray", "darkred"))+
+  scale_fill_manual(values=c("darkgray", "darkred"))+
   theme_classic()+
-  xlab("Final Mortality");plot6b
+  xlab("Hour");plot2a
 ```
 
-### Conduct posthoc tests 
+It appears that the temperature hardened group had less metabolic plasticity.  
 
-#### Effects of mortality within temperature and hardening treatment
+### Conduct post hoc tests
+
+#### Effects of mortality within hardening treatment and time 
 ```{r}
 anova(model3)
 
-emm<-emmeans(model3, ~final.mortality|temperature|hardening, adjust = "tukey")
+emm<-emmeans(model3, ~incubation.mortality|hardening|time, adjust = "tukey")
 pairs(emm)
 ```
 
-Significant effects: 
+- No differences at T0 as expected 
+- All treatments are different between alive and dead at T1-T4
 
-- Fresh water at 42°C had higher rates if the oyster died 
-- Fresh water temperature at 42°C had higher rates if the oyster died
-- Immune at 42°C had higher rates if the oyster died
-- Tempreature at 42°C had higher rates if oysters died 
+### Calculate percent differences between groups 
 
-Control oysters did NOT have higher metabolic rates if the oyster died. 
-No difference in alive vs dead oysters at 18°C. 
-
-## Model mortality effects at time final for 18°C oysters 
-
-### Detect outliers 
-
-Build a model including all predictors. 
 ```{r}
-final_18C<-data%>%
-  filter(time==4)%>%
-  filter(temperature=="18C")
-
-model4<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_18C)
-
-qqPlot(residuals(model4))
-
-hist(final_18C$value.mm3)
+perc_data<-high_4h_data%>%
+  group_by(incubation.mortality, hardening, time)%>%
+  summarise(mean=mean(value.mm3, na.rm=TRUE))%>%
+  pivot_wider(names_from=incubation.mortality, values_from=mean)%>%
+  filter(!time==0)%>%
+  mutate(perc_change=((dead-alive)/alive)*100);perc_data
 ```
 
-Identify using standardized residuals. 
+Next, plot the percent change in metabolic rates across time for each group. 
+
 ```{r}
-# Extract raw residuals
-final_18C$raw_resid <- residuals(model4)
+plot3a<-perc_data%>%
 
-# Standardize residuals
-final_18C$std_resid <- final_18C$raw_resid / sd(final_18C$raw_resid)
-
-# Flag potential outliers
-outlier_threshold <- 3
-final_18C$outlier_flag <- abs(final_18C$std_resid) > outlier_threshold
-
-# Filter rows flagged as outliers
-outliers <- final_18C %>% filter(outlier_flag == TRUE)
-print(outliers)
-
-# Plot standardized residuals
-ggplot(final_18C, aes(x = seq_along(std_resid), y = std_resid)) +
-  geom_point(aes(color = outlier_flag), size = 2) +
-  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
-  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
-  theme_minimal()
+  ggplot(aes(x=time, y=perc_change, color=hardening, fill=hardening))+
+  geom_point(alpha=0.5)+
+  geom_line(aes(group=hardening))+
+  theme_classic()+
+  ggtitle("Percent reduction in metabolic rates in alive oysters compared to those that died")+
+  xlab("Hour");plot3a
 ```
 
-No outliers detected. 
+## Analysis of 4 h mortality risk based on metabolic rate under high temperature in 4 h trial between hardening treatments at 42C 
 
+Predict mortality at next time point based on metabolic rate at preceding time point. 
 ```{r}
-hist(final_18C$value.mm3)
-```
+# Create a lagged status column
+model_data <- high_4h_data %>%
+  group_by(paste(date, bag, sample)) %>%
+  mutate(next_status = lead(status)) %>%
+  ungroup()
 
-### Analyze model 
+#if final mortality at time point 4 = dead, then add 1 to the "next_status" column and if final.mortality = alive, then add 0 to the "next status" column 
 
-Plot raw data. 
-```{r}
-final_18C%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=final.mortality, group=sample))+
-  geom_point(position=position_dodge(0.5))+
-  theme_classic()
-```
+model_data <- model_data%>%
+  filter(!is.na(next_status))%>%
+  select(!c("raw_resid", "std_resid", "outlier_flag"))
 
-Analyze total change in fluorescence (fluorescence after 4 hours) and comparing those that ended up alive or dead at the end of the trial.    
+# Logistic regression model
+model4 <- glmer(next_status ~ scale(value.mm3) * hardening + (1|bag:sample), family = binomial(link = "logit"), data = model_data)
 
-```{r}
-model4<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_18C)
-
+# Summary of the model
 summary(model4)
-anova(model4)
-rand(model4)
-
-qqPlot(residuals(model4))
+Anova(model4)
 ```
- 
-No significant effects. 
+
+Metabolic rate and temperature impact mortality status at the next time point. 
+
+```{r}
+plot(Effect(c("hardening"), model4))
+```
+
+```{r}
+plot(Effect(c("value.mm3"), model4))
+```
+
+Higher metabolic rate increases mortality risk. 
+
+```{r}
+plot(Effect(c("value.mm3", "hardening"), model4))
+```
 
 ### Plot data 
 
-Plot mean response for each hardening treatment between oysters that ended up alive and dead by the end of the trial at 18°C.  
-
-Plot first with individual points. 
+Plot effects on next mortality status. 
 
 ```{r}
-plot7<-final_18C%>%
+# Logistic regression model for predictions
+model_pred1 <- glmer(next_status ~ scale(value.mm3) * hardening + (1|bag:sample), family = binomial(link = "logit"), data = model_data)
 
-  ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot7
+# Generate predicted probabilities
+model_data$predicted_mortality <- predict(model_pred1, type = "response")
 
-plot7a<-final_18C%>%
-
-  ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
-  theme_classic()+
-  xlab("Temperature");plot7a
+# Plot
+plot12<-ggplot(model_data, aes(x = value.mm3, y = predicted_mortality, color = hardening, fill = hardening)) +
+  geom_point(aes(y = next_status), alpha = 0.6, position = position_jitter(height = 0.03)) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  labs(
+    title = "Incubation Mortality Risk [4 h]",
+    x = expression(paste(Delta, " Fluorescence")),
+    y = "Probability of Mortality",
+    color = "Hardening",
+    fill = "Hardening"
+  ) +
+  theme_classic();plot12
 ```
 
-Next plot with mean and sem for each group. 
+Fresh water temperature hardened oysters may have been more metabolically susceptible to stress. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Analysis of metabolic rates in oysters that lived through the entire 24 h trial 
 
 ```{r}
-plot8<-final_18C%>%
-  group_by(hardening, final.mortality)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-  
-  ggplot(aes(x=hardening, y=mean, color=final.mortality))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot8
+alive_24h_data<-main_data%>%
+  filter(final.mortality=="alive")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
 
-plot8a<-final_18C%>%
-  group_by(hardening, final.mortality)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-
-  ggplot(aes(x=final.mortality, y=mean, color=hardening))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.1))+
-  geom_point(alpha=0.5, position=position_dodge(0.1))+
-  geom_line(aes(group=hardening))+
-  theme_classic()+
-  xlab("Final Mortality");plot8a
+#view sample size 
+alive_24h_data%>%
+  group_by(time, temperature, hardening)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
 ```
 
-### Conduct posthoc tests 
-
-#### Effects of mortality within hardening treatment
-```{r}
-anova(model4)
-
-emm<-emmeans(model4, ~final.mortality|hardening, adjust = "tukey")
-pairs(emm)
-```
-
-No differences. 
-
-
-## Model mortality effects at time final for 42°C oysters 
+We have n>5 for all groups at all time point of oysters that lived through the 24 hour trial. High variation in sample size.   
 
 ### Detect outliers 
 
 Build a model including all predictors. 
 ```{r}
-final_42C<-data%>%
-  filter(time==4)%>%
-  filter(temperature=="42C")
-
-model5<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_42C)
+model5<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=alive_24h_data)
 
 qqPlot(residuals(model5))
 
-hist(final_42C$value.mm3)
+hist(alive_24h_data$value.mm3)
 ```
 
 Identify using standardized residuals. 
 ```{r}
 # Extract raw residuals
-final_42C$raw_resid <- residuals(model5)
+alive_24h_data$raw_resid <- residuals(model5)
 
 # Standardize residuals
-final_42C$std_resid <- final_42C$raw_resid / sd(final_42C$raw_resid)
+alive_24h_data$std_resid <- alive_24h_data$raw_resid / sd(alive_24h_data$raw_resid)
 
 # Flag potential outliers
 outlier_threshold <- 3
-final_42C$outlier_flag <- abs(final_42C$std_resid) > outlier_threshold
+alive_24h_data$outlier_flag <- abs(alive_24h_data$std_resid) > outlier_threshold
 
 # Filter rows flagged as outliers
-outliers <- final_42C %>% filter(outlier_flag == TRUE)
+outliers <- alive_24h_data %>% filter(outlier_flag == TRUE)
 print(outliers)
 
 # Plot standardized residuals
-ggplot(final_42C, aes(x = seq_along(std_resid), y = std_resid)) +
+ggplot(alive_24h_data, aes(x = seq_along(std_resid), y = std_resid)) +
   geom_point(aes(color = outlier_flag), size = 2) +
   geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
   labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
   theme_minimal()
 ```
 
+Remove identified outliers. 
 ```{r}
-hist(final_42C$value.mm3)
+alive_24h_data<-alive_24h_data%>%
+  filter(!outlier_flag==TRUE)
 ```
 
-### Analyze model 
+```{r}
+hist(alive_24h_data$value.mm3)
+```
+
+### Analyze model  
 
 Plot raw data. 
 ```{r}
-final_42C%>%
-  ggplot(aes(x=hardening, y=value.mm3, colour=final.mortality, group=sample))+
-  geom_point(position=position_dodge(0.5))+
+alive_24h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
+  facet_wrap(~bag*date*hardening)+
+  geom_point()+
+  geom_line()+
   theme_classic()
 ```
 
-Analyze total change in fluorescence (fluorescence after 4 hours) and comparing those that ended up alive or dead at the end of the trial.    
-
 ```{r}
-model5<-lmer(sqrt(value.mm3) ~ hardening * final.mortality + (1|hardening:bag), data=final_42C)
+model5<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=alive_24h_data)
 
 summary(model5)
 anova(model5)
@@ -1057,146 +1046,190 @@ rand(model5)
 
 qqPlot(residuals(model5))
 ```
- 
-Significant effect of mortality on metabolic rates at 42°C. 
 
 ### Plot data 
 
-Plot mean response for each hardening treatment between oysters that ended up alive and dead by the end of the trial at 18°C.  
+Plot mean response for each hardening treatment across time at 18°C and 42°C in those that were alive through the entire 24 hour trial
 
-Plot first with individual points. 
+Plot first with individual points with geom smooth lines. 
 
 ```{r}
-plot9<-final_42C%>%
+plot1<-alive_24h_data%>%
 
-  ggplot(aes(x=hardening, y=value.mm3, color=final.mortality))+
-  geom_boxplot(position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
+  ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
+  facet_grid(~hardening)+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
-  xlab("Hardening Treatment");plot9
+  xlab("Hour");plot1
 
-plot9a<-final_42C%>%
+plot1a<-alive_24h_data%>%
 
-  ggplot(aes(x=temperature, y=value.mm3, color=hardening))+
-  geom_boxplot(position=position_dodge(0.9))+
-  geom_point(alpha=0.5, position=position_dodge(0.9))+
+  ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
+  facet_grid(~temperature)+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=hardening))+
+  #scale_colour_manual(values=c("cyan4", "orange"))+
+  #scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
-  xlab("Temperature");plot9a
+  xlab("Hour");plot1a
 ```
 
 Next plot with mean and sem for each group. 
 
 ```{r}
-plot9<-final_42C%>%
-  group_by(hardening, final.mortality)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-  
-  ggplot(aes(x=hardening, y=mean, color=final.mortality))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  theme_classic()+
-  xlab("Hardening Treatment");plot9
+plot2<-alive_24h_data%>%
+  group_by(temperature, hardening, time)%>%
+  summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-plot9a<-final_42C%>%
-  group_by(hardening, final.mortality)%>%
+  ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
+  facet_grid(~hardening)+
+  geom_point(alpha=0.5)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_line(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot2
+
+plot2a<-alive_24h_data%>%
+  group_by(temperature, hardening, time)%>%
   summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-  ggplot(aes(x=final.mortality, y=mean, color=hardening))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.1))+
-  geom_point(alpha=0.5, position=position_dodge(0.1))+
-  geom_line(aes(group=hardening), position=position_dodge(0.1))+
+  ggplot(aes(x=time, y=mean, color=hardening, fill=hardening))+
+  facet_grid(~temperature)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_point(alpha=0.5)+
+  geom_line(aes(group=hardening))+
+  #scale_colour_manual(values=c("cyan4", "orange"))+
+  #scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
-  xlab("Final Mortality");plot9a
+  xlab("Hour");plot2a
 ```
 
-### Conduct posthoc tests 
+### Conduct post hoc tests
 
-#### Effects of mortality within hardening treatment
+#### Effects of hardening treatment within temperature 
 ```{r}
 anova(model5)
 
-emm<-emmeans(model5, ~final.mortality|hardening, adjust = "tukey")
+emm<-emmeans(model5, ~hardening|temperature|time, adjust = "tukey")
 pairs(emm)
 ```
 
-All treatments have higher metabolic rates in oysters that died at 42°C (control is P=0.05 when rounded).   
+No differences between treatments within time are significant.  
 
-## Model with hardening effects as a random effect: effects of time without mortality status 
+#### Effects of temperature treatment within hardening  
+```{r}
+emm<-emmeans(model5, ~temperature|hardening|time, adjust = "tukey")
+pairs(emm)
+```
 
-### Load original data frame that does not have outliers removed from above 
+Significant effects: 
+
+- At time 2, control and temperature were NOT different by temperature 
+- At time 3, control was not different 
+- At time 4, all were different 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Analysis of metabolic rates in oysters that lived through the 4h incubation but died by 24 h  
 
 ```{r}
-head(main_data)
+dead_24h_data<-main_data%>%
+  filter(final.mortality=="dead" & incubation.mortality=="alive")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
 
-data2<-main_data
+#view sample size 
+dead_24h_data%>%
+  group_by(time, temperature, hardening)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
 ```
+
+We have n>5 for all groups at all time point of oysters. High variation in sample size.   
 
 ### Detect outliers 
 
 Build a model including all predictors. 
 ```{r}
-model6<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening:bag) + (1|hardening), data=data2)
+model6<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=dead_24h_data)
 
 qqPlot(residuals(model6))
 
-hist(data2$value.mm3)
+hist(dead_24h_data$value.mm3)
 ```
 
 Identify using standardized residuals. 
 ```{r}
 # Extract raw residuals
-data2$raw_resid <- residuals(model6)
+dead_24h_data$raw_resid <- residuals(model6)
 
 # Standardize residuals
-data2$std_resid <- data2$raw_resid / sd(data2$raw_resid)
+dead_24h_data$std_resid <- dead_24h_data$raw_resid / sd(dead_24h_data$raw_resid)
 
 # Flag potential outliers
 outlier_threshold <- 3
-data2$outlier_flag <- abs(data2$std_resid) > outlier_threshold
+dead_24h_data$outlier_flag <- abs(dead_24h_data$std_resid) > outlier_threshold
 
 # Filter rows flagged as outliers
-outliers <- data2 %>% filter(outlier_flag == TRUE)
+outliers <- dead_24h_data %>% filter(outlier_flag == TRUE)
 print(outliers)
 
 # Plot standardized residuals
-ggplot(data2, aes(x = seq_along(std_resid), y = std_resid)) +
+ggplot(dead_24h_data, aes(x = seq_along(std_resid), y = std_resid)) +
   geom_point(aes(color = outlier_flag), size = 2) +
   geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
   labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
   theme_minimal()
 ```
 
-Remove outliers 
-
+Remove identified outliers. 
 ```{r}
-data2<-data2%>%
-  filter(!outlier_flag == TRUE)
+dead_24h_data<-dead_24h_data%>%
+  filter(!outlier_flag==TRUE)
 ```
 
 ```{r}
-hist(data2$value.mm3)
+hist(dead_24h_data$value.mm3)
 ```
 
-16 outlier points removed.  
-
-### Analyze model 
+### Analyze model  
 
 Plot raw data. 
 ```{r}
-data2%>%
+dead_24h_data%>%
   ggplot(aes(x=time, y=value.mm3, colour=temperature, group=sample))+
-  facet_wrap(~date)+
+  facet_wrap(~bag*date*hardening)+
   geom_point()+
-  geom_line(aes(group=sample))+
+  geom_line()+
   theme_classic()
 ```
 
-Analyze change in fluorescence over time between temperatures.    
-
 ```{r}
-model6<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening:bag) + (1|hardening), data=data2)
+model6<-lmer(sqrt(value.mm3) ~ time * temperature * hardening + (1|bag) + (1|date:bag:sample), data=dead_24h_data)
 
 summary(model6)
 anova(model6)
@@ -1204,53 +1237,910 @@ rand(model6)
 
 qqPlot(residuals(model6))
 ```
- 
-Significant effect of temperature on metabolic rates.  
 
 ### Plot data 
 
-Plot temperature effects over time.    
+Plot mean response for each hardening treatment across time at 18°C and 42°C in those that were alive through the entire 24 hour trial
 
-Plot first with individual points. 
+Plot first with individual points with geom smooth lines. 
 
 ```{r}
-plot10<-data2%>%
+plot1<-dead_24h_data%>%
 
-  ggplot(aes(x=time, y=sqrt(value.mm3), color=temperature, fill=temperature))+
-  geom_point(alpha=0.1, position=position_dodge(0.2))+
-  stat_smooth(aes(group=temperature), method = "loess")+
+  ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
+  facet_grid(~hardening)+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
   scale_colour_manual(values=c("cyan4", "orange"))+
   scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
-  ylab(expression(bold(paste(sqrt("Fluorescence units mm" ^-2)))))+
-  xlab("Hours")+
-  theme(
-    legend.title=element_blank(),
-    axis.text=element_text(size=14, colour="black"), 
-    axis.title=element_text(size=14, face="bold", colour="black")
-  );plot10
+  xlab("Hour");plot1
 
-ggsave(plot10, filename="figures/resazurin/temp_effects.png", width=5, height=5)
+plot1a<-dead_24h_data%>%
+
+  ggplot(aes(x=time, y=value.mm3, color=hardening, fill=hardening))+
+  facet_grid(~temperature)+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=hardening))+
+  #scale_colour_manual(values=c("cyan4", "orange"))+
+  #scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot1a
 ```
 
 Next plot with mean and sem for each group. 
 
 ```{r}
-plot11<-data2%>%
-  group_by(time, temperature)%>%
-  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
-  
-  ggplot(aes(x=time, y=mean, color=temperature))+
-  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1, position=position_dodge(0.5))+
-  geom_point(alpha=0.5, position=position_dodge(0.5))+
+plot2<-dead_24h_data%>%
+  group_by(temperature, hardening, time)%>%
+  summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+
+  ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
+  facet_grid(~hardening)+
+  geom_point(alpha=0.5)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_line(aes(group=temperature))+
   scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
-  xlab("Hours");plot11
+  xlab("Hour");plot2
+
+plot2a<-dead_24h_data%>%
+  group_by(temperature, hardening, time)%>%
+  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+
+  ggplot(aes(x=time, y=mean, color=hardening, fill=hardening))+
+  facet_grid(~temperature)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_point(alpha=0.5)+
+  geom_line(aes(group=hardening))+
+  #scale_colour_manual(values=c("cyan4", "orange"))+
+  #scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot2a
 ```
 
-### Conduct posthoc tests 
+### Conduct post hoc tests
 
-#### Effects of temperature within time point
+#### Effects of hardening treatment within temperature 
+```{r}
+anova(model6)
+
+emm<-emmeans(model6, ~hardening|temperature|time, adjust = "tukey")
+pairs(emm)
+```
+
+No differences between treatments within time are significant.  
+
+#### Effects of temperature treatment within hardening  
+```{r}
+emm<-emmeans(model6, ~temperature|hardening|time, adjust = "tukey")
+pairs(emm)
+```
+
+Significant effects: 
+
+- At time 1, Fresh water temp and immune were different between temperatures 
+- At time 2, 3, and 4, all were different 
+
+
+
+
+
+
+
+
+
+## Analysis of 24 h mortality risk based on metabolic rate under high temperature in 4 h trial between hardening treatments
+
+```{r}
+# Create a lagged status column
+data_lag <- main_data %>%
+  group_by(paste(date, bag, sample)) %>%
+  mutate(next_status = lead(status)) %>%
+  ungroup()
+
+#if final mortality at time point 4 = dead, then add 1 to the "next_status" column and if final.mortality = alive, then add 0 to the "next status" column 
+
+data_lag <- data_lag%>%
+  mutate(next_status = if_else(time=="4" & final.mortality =="dead", 1, 0))
+
+# Logistic regression model
+model7 <- glmer(next_status ~ scale(value.mm3) * temperature * hardening + (1|bag:sample), family = binomial(link = "logit"), data = data_lag)
+
+# Summary of the model
+summary(model7)
+Anova(model7)
+```
+
+```{r}
+plot(Effect(c("temperature"), model7))
+```
+
+Higher risk of mortality at 42°C. 
+
+```{r}
+plot(Effect(c("value.mm3"), model7))
+```
+
+Higher metabolic rate increases mortality risk. 
+
+```{r}
+plot(Effect(c("value.mm3", "temperature"), model7))
+```
+
+Risk of mortality is higher at eleveated metabolic rate in 42°C as compared to 18°C.  
+
+```{r}
+plot(Effect(c("hardening"), model7))
+```
+
+### Plot data 
+
+Plot effects on next mortality status. 
+
+```{r}
+# Logistic regression model for predictions
+model_pred <- glmer(next_status ~ scale(value.mm3) * temperature * hardening + (1|bag:sample), family = binomial(link = "logit"), data = data_lag)
+
+# Generate predicted probabilities
+data_lag$predicted_mortality <- predict(model_pred, type = "response")
+
+# Plot
+plot12<-ggplot(data_lag, aes(x = value.mm3, y = predicted_mortality, color = hardening, fill = hardening)) +
+  facet_wrap(~temperature, scales="free_x")+
+  geom_point(aes(y = next_status), alpha = 0.6, position = position_jitter(height = 0.03)) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  labs(
+    title = "",
+    x = expression(paste(Delta, " Fluorescence")),
+    y = "Probability of Subsequent Mortality",
+    color = "Hardening",
+    fill = "Hardening"
+  ) +
+  theme_classic();plot12
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Analysis: Hardening as a random effect 
+
+Because sample sizes are low for certain mortality groups and effects of hardening are minimal, analyze hardening as a random effect and examine metabolic response to temperature and variation depending on time of mortality.  
+
+## Analysis of metabolic rates in oysters that lived through the 4 h trial 
+
+```{r}
+alive_4h_data<-main_data%>%
+  filter(incubation.mortality=="alive")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
+
+#view sample size 
+alive_4h_data%>%
+  group_by(time, temperature)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
+```
+
+We have n>10 for all groups at all time point of oysters that lived through the 4 hour trial.  
+
+### Detect outliers 
+
+Build a model including all predictors. 
+```{r}
+model<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening) + (1|date:bag:sample), data=alive_4h_data)
+
+qqPlot(residuals(model))
+
+hist(alive_4h_data$value.mm3)
+```
+
+Identify using standardized residuals. 
+```{r}
+# Extract raw residuals
+alive_4h_data$raw_resid <- residuals(model)
+
+# Standardize residuals
+alive_4h_data$std_resid <- alive_4h_data$raw_resid / sd(alive_4h_data$raw_resid)
+
+# Flag potential outliers
+outlier_threshold <- 3
+alive_4h_data$outlier_flag <- abs(alive_4h_data$std_resid) > outlier_threshold
+
+# Filter rows flagged as outliers
+outliers <- alive_4h_data %>% filter(outlier_flag == TRUE)
+print(outliers)
+
+# Plot standardized residuals
+ggplot(alive_4h_data, aes(x = seq_along(std_resid), y = std_resid)) +
+  geom_point(aes(color = outlier_flag), size = 2) +
+  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+  theme_minimal()
+```
+
+Remove identified outliers. 
+```{r}
+alive_4h_data<-alive_4h_data%>%
+  filter(!outlier_flag==TRUE)
+```
+
+```{r}
+hist(alive_4h_data$value.mm3)
+```
+
+### Analyze model  
+
+Plot raw data. 
+```{r}
+alive_4h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=paste(date, bag, sample)))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+```{r}
+model<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening) + (1|date:bag:sample), data=alive_4h_data)
+
+summary(model)
+anova(model)
+rand(model)
+
+qqPlot(residuals(model))
+```
+
+Return to troubleshooting residuals for this model.  
+
+### Plot data 
+
+Plot mean response for each hardening treatment across time at 18°C and 42°C in those that were alive through the 4 hour incubation.   
+
+Plot first with individual points with geom smooth lines. 
+
+```{r}
+plot1<-alive_4h_data%>%
+
+  ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature, group=temperature))+
+  geom_point(alpha=0.5)+
+  stat_smooth(method="loess")+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot1
+```
+
+Next plot with mean and sem for each group. 
+
+```{r}
+plot2<-alive_4h_data%>%
+  group_by(temperature, time)%>%
+  summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+
+  ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
+  geom_point(alpha=0.5)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_line(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot2
+```
+
+### Conduct post hoc tests
+
+#### Effects of hardening treatment within temperature 
+```{r}
+anova(model)
+
+emm<-emmeans(model, ~temperature|time, adjust = "tukey")
+pairs(emm)
+```
+
+Different after time point 2
+
+## Analysis of metabolic rates between those that died during the 4 h trial
+
+```{r}
+dead_4h_data<-main_data%>%
+  filter(incubation.mortality=="dead")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
+
+#view sample size 
+dead_4h_data%>%
+  group_by(time, temperature)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
+```
+
+We have n>10. Far more samples at 42C. 
+
+```{r}
+#dead_4h_data<-dead_4h_data%>%
+#  filter(temperature=="42C")
+```
+
+### Detect outliers 
+
+Build a model including all predictors. 
+```{r}
+model<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening) + (1|date:bag:sample), data=dead_4h_data)
+
+qqPlot(residuals(model))
+
+hist(dead_4h_data$value.mm3)
+```
+
+Identify using standardized residuals. 
+```{r}
+# Extract raw residuals
+dead_4h_data$raw_resid <- residuals(model)
+
+# Standardize residuals
+dead_4h_data$std_resid <- dead_4h_data$raw_resid / sd(dead_4h_data$raw_resid)
+
+# Flag potential outliers
+outlier_threshold <- 3
+dead_4h_data$outlier_flag <- abs(dead_4h_data$std_resid) > outlier_threshold
+
+# Filter rows flagged as outliers
+outliers <- dead_4h_data %>% filter(outlier_flag == TRUE)
+print(outliers)
+
+# Plot standardized residuals
+ggplot(dead_4h_data, aes(x = seq_along(std_resid), y = std_resid)) +
+  geom_point(aes(color = outlier_flag), size = 2) +
+  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+  theme_minimal()
+```
+
+Remove identified outliers. 
+```{r}
+dead_4h_data<-dead_4h_data%>%
+  filter(!outlier_flag==TRUE)
+```
+
+```{r}
+hist(dead_4h_data$value.mm3)
+```
+
+### Analyze model  
+
+Plot raw data. 
+```{r}
+dead_4h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=paste(date,sample)))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+```{r}
+model2<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening) + (1|date:bag:sample), data=dead_4h_data)
+
+summary(model2)
+anova(model2)
+rand(model2)
+
+qqPlot(residuals(model2))
+```
+
+Significant effects of time x hardening in oysters that died within the 4 h incubation. 
+
+### Plot data 
+
+Plot mean response for each hardening treatment across time at 42°C in those that died during the 4 hour incubation.   
+
+Plot first with individual points with geom smooth lines. 
+
+```{r}
+plot1a<-dead_4h_data%>%
+
+  ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot1a
+```
+
+Next plot with mean and sem for each group. 
+
+```{r}
+plot2a<-dead_4h_data%>%
+  group_by(temperature, time)%>%
+  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+
+  ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_point(alpha=0.5)+
+  geom_line(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot2a
+```
+
+### Conduct post hoc tests
+
+#### Effects of hardening treatment within temperature 
+```{r}
+anova(model2)
+
+emm<-emmeans(model2, ~temperature|time, adjust = "tukey")
+pairs(emm)
+```
+
+Different during time 3-4.  
+
+## Analysis of metabolic differences in live vs dead oysters during the 4 h trial at 42°C
+
+Small sample size in 18°C of oysters that died within 4 hours. Use only 42C.   
+```{r}
+high_4h_data<-main_data%>%
+  filter(temperature=="42C")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
+
+#view sample size 
+high_4h_data%>%
+  group_by(time, temperature, incubation.mortality)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
+```
+
+Using only 42°C, because we only had 1-4 oysters that died at 18°C, making alive vs dead comparisons at 18°C not possible. This is expected since we do not expect mortality at 18°C.  
+
+### Detect outliers 
+
+Build a model including all predictors. 
+```{r}
+model3<-lmer(sqrt(value.mm3) ~ time * incubation.mortality + (1|hardening) + (1|date:bag:sample), data=high_4h_data)
+
+qqPlot(residuals(model3))
+
+hist(high_4h_data$value.mm3)
+```
+
+Identify using standardized residuals. 
+```{r}
+# Extract raw residuals
+high_4h_data$raw_resid <- residuals(model3)
+
+# Standardize residuals
+high_4h_data$std_resid <- high_4h_data$raw_resid / sd(high_4h_data$raw_resid)
+
+# Flag potential outliers
+outlier_threshold <- 3
+high_4h_data$outlier_flag <- abs(high_4h_data$std_resid) > outlier_threshold
+
+# Filter rows flagged as outliers
+outliers <- high_4h_data %>% filter(outlier_flag == TRUE)
+print(outliers)
+
+# Plot standardized residuals
+ggplot(high_4h_data, aes(x = seq_along(std_resid), y = std_resid)) +
+  geom_point(aes(color = outlier_flag), size = 2) +
+  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+  theme_minimal()
+```
+
+Remove identified outliers. 
+```{r}
+high_4h_data<-high_4h_data%>%
+  filter(!outlier_flag==TRUE)
+```
+
+```{r}
+hist(high_4h_data$value.mm3)
+```
+
+### Analyze model  
+
+Plot raw data. 
+```{r}
+high_4h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=incubation.mortality, group=paste(date,sample)))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+```{r}
+model3<-lmer(sqrt(value.mm3) ~ time * incubation.mortality + (1|hardening) + (1|date:bag:sample), data=high_4h_data)
+
+summary(model3)
+anova(model3)
+rand(model3)
+
+qqPlot(residuals(model3))
+```
+
+### Plot data 
+
+Plot mean response for each hardening treatment across time in those that died or remained alive during the 4 hour incubation.   
+
+Plot first with individual points with geom smooth lines. 
+
+```{r}
+plot1a<-high_4h_data%>%
+
+  ggplot(aes(x=time, y=value.mm3, color=incubation.mortality, fill=incubation.mortality))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=incubation.mortality))+
+  scale_colour_manual(values=c("darkgray", "darkred"))+
+  scale_fill_manual(values=c("darkgray", "darkred"))+
+  theme_classic()+
+  xlab("Hour");plot1a
+```
+
+Next plot with mean and sem for each group. 
+
+```{r}
+plot2a<-high_4h_data%>%
+  group_by(incubation.mortality, time)%>%
+  summarise(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+
+  ggplot(aes(x=time, y=mean, color=incubation.mortality, fill=incubation.mortality))+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_point(alpha=0.5)+
+  geom_line(aes(group=incubation.mortality))+
+  scale_colour_manual(values=c("darkgray", "darkred"))+
+  scale_fill_manual(values=c("darkgray", "darkred"))+
+  theme_classic()+
+  xlab("Hour");plot2a
+```
+
+Higher rates in those that died during 4 h incubation.   
+
+### Conduct post hoc tests
+
+#### Effects of mortality within hardening treatment and time 
+```{r}
+anova(model3)
+
+emm<-emmeans(model3, ~incubation.mortality|time, adjust = "tukey")
+pairs(emm)
+```
+
+- Difference after T1
+
+### Calculate percent differences between groups 
+
+```{r}
+perc_data<-high_4h_data%>%
+  group_by(incubation.mortality, time)%>%
+  summarise(mean=mean(value.mm3, na.rm=TRUE))%>%
+  pivot_wider(names_from=incubation.mortality, values_from=mean)%>%
+  filter(!time==0)%>%
+  mutate(perc_change=((dead-alive)/alive)*100);perc_data
+```
+
+## Analysis of 4 h mortality risk based on metabolic rate under high temperature in 4 h trial at 42C 
+
+Predict mortality at next time point based on metabolic rate at preceding time point. 
+```{r}
+# Create a lagged status column
+model_data <- high_4h_data %>%
+  group_by(paste(date, bag, sample)) %>%
+  mutate(next_status = lead(status)) %>%
+  ungroup()
+
+#if final mortality at time point 4 = dead, then add 1 to the "next_status" column and if final.mortality = alive, then add 0 to the "next status" column 
+
+model_data <- model_data%>%
+  filter(!is.na(next_status))%>%
+  select(!c("raw_resid", "std_resid", "outlier_flag"))
+
+# Logistic regression model
+model4 <- glmer(next_status ~ scale(value.mm3) + (1|hardening) + (1|bag:sample), family = binomial(link = "logit"), data = model_data)
+
+# Summary of the model
+summary(model4)
+Anova(model4)
+```
+
+```{r}
+plot(Effect(c("value.mm3"), model4))
+```
+
+Higher metabolic rate increases mortality risk. 
+
+### Plot data 
+
+Plot effects on next mortality status. 
+
+```{r}
+# Logistic regression model for predictions
+model_pred1 <- glmer(next_status ~ scale(value.mm3) + (1|hardening) + (1|bag:sample), family = binomial(link = "logit"), data = model_data)
+
+# Generate predicted probabilities
+model_data$predicted_mortality <- predict(model_pred1, type = "response")
+
+# Plot
+plot12<-ggplot(model_data, aes(x = value.mm3, y = predicted_mortality)) +
+  geom_point(aes(y = next_status), alpha = 0.5, position = position_jitter(height = 0.03), colour="darkgray") +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE, colour="black") +
+  labs(
+    title = "Incubation Mortality Risk [4 h]",
+    x = expression(paste(Delta, " Fluorescence")),
+    y = "Probability of Mortality"
+  ) +
+  theme_classic();plot12
+```
+
+
+## Analysis of metabolic rates in oysters that lived through the entire 24 h trial 
+
+```{r}
+alive_24h_data<-main_data%>%
+  filter(final.mortality=="alive")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
+
+#view sample size 
+alive_24h_data%>%
+  group_by(time, temperature)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
+```
+
+### Detect outliers 
+
+Build a model including all predictors. 
+```{r}
+model5<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening) + (1|date:bag:sample), data=alive_24h_data)
+
+qqPlot(residuals(model5))
+
+hist(alive_24h_data$value.mm3)
+```
+
+Identify using standardized residuals. 
+```{r}
+# Extract raw residuals
+alive_24h_data$raw_resid <- residuals(model5)
+
+# Standardize residuals
+alive_24h_data$std_resid <- alive_24h_data$raw_resid / sd(alive_24h_data$raw_resid)
+
+# Flag potential outliers
+outlier_threshold <- 3
+alive_24h_data$outlier_flag <- abs(alive_24h_data$std_resid) > outlier_threshold
+
+# Filter rows flagged as outliers
+outliers <- alive_24h_data %>% filter(outlier_flag == TRUE)
+print(outliers)
+
+# Plot standardized residuals
+ggplot(alive_24h_data, aes(x = seq_along(std_resid), y = std_resid)) +
+  geom_point(aes(color = outlier_flag), size = 2) +
+  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+  theme_minimal()
+```
+
+Remove identified outliers. 
+```{r}
+alive_24h_data<-alive_24h_data%>%
+  filter(!outlier_flag==TRUE)
+```
+
+```{r}
+hist(alive_24h_data$value.mm3)
+```
+
+### Analyze model  
+
+Plot raw data. 
+```{r}
+alive_24h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=paste(date,sample)))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+```{r}
+model5<-lmer(sqrt(value.mm3) ~ time * temperature + (1|bag) + (1|date:bag:sample), data=alive_24h_data)
+
+summary(model5)
+anova(model5)
+rand(model5)
+
+qqPlot(residuals(model5))
+```
+
+### Plot data 
+
+Plot mean response for each hardening treatment across time at 18°C and 42°C in those that were alive through the entire 24 hour trial
+
+Plot first with individual points with geom smooth lines. 
+
+```{r}
+plot1<-alive_24h_data%>%
+
+  ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot1
+```
+
+Next plot with mean and sem for each group. 
+
+```{r}
+plot2<-alive_24h_data%>%
+  group_by(temperature, time)%>%
+  summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+
+  ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
+  geom_point(alpha=0.5)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_line(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot2
+```
+
+### Conduct post hoc tests
+
+#### Effects of hardening treatment within temperature 
+```{r}
+anova(model5)
+
+emm<-emmeans(model5, ~temperature|time, adjust = "tukey")
+pairs(emm)
+```
+
+Different starting at time point 2  
+
+## Analysis of metabolic rates in oysters that lived through the 4h incubation but died by 24 h  
+
+```{r}
+dead_24h_data<-main_data%>%
+  filter(final.mortality=="dead" & incubation.mortality=="alive")%>%
+  ungroup()%>%
+  dplyr::select(!c(value, volume.mm3, width.mm, length.mm))
+
+#view sample size 
+dead_24h_data%>%
+  group_by(time, temperature)%>%
+  dplyr::summarise(length(value.mm3))%>%
+  print(n=100)
+```
+
+### Detect outliers 
+
+Build a model including all predictors. 
+```{r}
+model6<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening) + (1|date:bag:sample), data=dead_24h_data)
+
+qqPlot(residuals(model6))
+
+hist(dead_24h_data$value.mm3)
+```
+
+Identify using standardized residuals. 
+```{r}
+# Extract raw residuals
+dead_24h_data$raw_resid <- residuals(model6)
+
+# Standardize residuals
+dead_24h_data$std_resid <- dead_24h_data$raw_resid / sd(dead_24h_data$raw_resid)
+
+# Flag potential outliers
+outlier_threshold <- 3
+dead_24h_data$outlier_flag <- abs(dead_24h_data$std_resid) > outlier_threshold
+
+# Filter rows flagged as outliers
+outliers <- dead_24h_data %>% filter(outlier_flag == TRUE)
+print(outliers)
+
+# Plot standardized residuals
+ggplot(dead_24h_data, aes(x = seq_along(std_resid), y = std_resid)) +
+  geom_point(aes(color = outlier_flag), size = 2) +
+  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+  theme_minimal()
+```
+
+Remove identified outliers. 
+```{r}
+dead_24h_data<-dead_24h_data%>%
+  filter(!outlier_flag==TRUE)
+```
+
+```{r}
+hist(dead_24h_data$value.mm3)
+```
+
+### Analyze model  
+
+Plot raw data. 
+```{r}
+dead_24h_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=temperature, group=paste(date,sample)))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+```{r}
+model6<-lmer(sqrt(value.mm3) ~ time * temperature + (1|hardening) + (1|date:bag:sample), data=dead_24h_data)
+
+summary(model6)
+anova(model6)
+rand(model6)
+
+qqPlot(residuals(model6))
+```
+
+### Plot data 
+
+Plot mean response for each hardening treatment across time at 18°C and 42°C in those that were alive through the entire 24 hour trial
+
+Plot first with individual points with geom smooth lines. 
+
+```{r}
+plot1<-dead_24h_data%>%
+
+  ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot1
+```
+
+Next plot with mean and sem for each group. 
+
+```{r}
+plot2<-dead_24h_data%>%
+  group_by(temperature, time)%>%
+  summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
+
+  ggplot(aes(x=time, y=mean, color=temperature, fill=temperature))+
+  geom_point(alpha=0.5)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_line(aes(group=temperature))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
+  theme_classic()+
+  xlab("Hour");plot2
+```
+
+### Conduct post hoc tests
+
+#### Effects of hardening treatment within temperature 
 ```{r}
 anova(model6)
 
@@ -1258,142 +2148,44 @@ emm<-emmeans(model6, ~temperature|time, adjust = "tukey")
 pairs(emm)
 ```
 
-Metabolic rates are higher under 42°C in the first hour, and are lower afterwards.    
+Different starting at time point 2.  
 
-
-
-## Model with hardening effects as a random effect: effects of time with mortality status over time 
-
-### Load original data frame that does not have outliers removed from above 
-
-```{r}
-head(main_data)
-
-data3<-main_data
-```
-
-Plot mortality over time. 
-```{r}
-data3%>%
-  ggplot(aes(x=time, y=status))+
-  facet_wrap(~temperature)+
-  geom_violin()+
-  theme_classic()
-```
-
-### Detect outliers 
-
-Build a model including all predictors. 
-```{r}
-model7<-lmer(sqrt(value.mm3) ~ time * temperature * status + (1|hardening:bag) + (1|hardening), data=data3)
-
-qqPlot(residuals(model7))
-
-hist(data3$value.mm3)
-```
-
-Identify using standardized residuals. 
-```{r}
-# Extract raw residuals
-data3$raw_resid <- residuals(model7)
-
-# Standardize residuals
-data3$std_resid <- data3$raw_resid / sd(data3$raw_resid)
-
-# Flag potential outliers
-outlier_threshold <- 3
-data3$outlier_flag <- abs(data3$std_resid) > outlier_threshold
-
-# Filter rows flagged as outliers
-outliers <- data3 %>% filter(outlier_flag == TRUE)
-print(outliers)
-
-# Plot standardized residuals
-ggplot(data3, aes(x = seq_along(std_resid), y = std_resid)) +
-  geom_point(aes(color = outlier_flag), size = 2) +
-  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
-  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
-  theme_minimal()
-```
-
-Remove outliers 
-
-```{r}
-data3<-data3%>%
-  filter(!outlier_flag == TRUE)
-```
-
-```{r}
-hist(data3$value.mm3)
-```
-
-20 outlier points removed.  
-
-### Analyze model 
-
-Analyze mortality status effects. 
-
-Plot raw data. 
-```{r}
-data3%>%
-  ggplot(aes(x=time, y=value.mm3, colour=as.factor(status), group=interaction(date,sample)))+
-  geom_point()+
-  theme_classic()
-```
-
-Analyze change in fluorescence over time between temperatures.    
-
-```{r}
-model8<-lmer(sqrt(value.mm3) ~ time * as.factor(status) + (1|hardening:bag:sample) + (1|hardening), data=data3)
-
-summary(model8)
-anova(model8)
-rand(model8)
-
-qqPlot(residuals(model8))
-```
- 
-Significant effect of mortality on metabolic rates when considering current status.  
-
-Analyze effect of metabolic rates on the next mortality status (predicting mortality). 
+## Analysis of 24 h mortality risk based on metabolic rate under high temperature in 4 h trial between hardening treatments
 
 ```{r}
 # Create a lagged status column
-data3_lag <- data3 %>%
+data_lag <- main_data %>%
   group_by(paste(date, bag, sample)) %>%
   mutate(next_status = lead(status)) %>%
   ungroup()
 
 #if final mortality at time point 4 = dead, then add 1 to the "next_status" column and if final.mortality = alive, then add 0 to the "next status" column 
 
-data3_lag <- data3_lag%>%
-  mutate(next_status = if_else(time=="4" & final.mortality =="dead", 1, 0))%>%
-  select(!c("width.mm", "length.mm", "value", "volume.mm3", "raw_resid", "std_resid", "outlier_flag"))
+data_lag <- data_lag%>%
+  mutate(next_status = if_else(time=="4" & final.mortality =="dead", 1, 0))
 
 # Logistic regression model
-model9 <- glmer(next_status ~ scale(value.mm3) * temperature + (1|hardening:bag:sample) + (1|hardening), family = binomial(link = "logit"), data = data3_lag)
+model7 <- glmer(next_status ~ scale(value.mm3) * temperature + (1|hardening) + (1|bag:sample), family = binomial(link = "logit"), data = data_lag)
 
 # Summary of the model
-summary(model9)
-Anova(model9)
+summary(model7)
+Anova(model7)
 ```
 
-Metabolic rate and temperature impact mortality status at the next time point. 
-
 ```{r}
-plot(Effect(c("temperature"), model9))
+plot(Effect(c("temperature"), model7))
 ```
 
 Higher risk of mortality at 42°C. 
 
 ```{r}
-plot(Effect(c("value.mm3"), model9))
+plot(Effect(c("value.mm3"), model7))
 ```
 
 Higher metabolic rate increases mortality risk. 
 
 ```{r}
-plot(Effect(c("value.mm3", "temperature"), model9))
+plot(Effect(c("value.mm3", "temperature"), model7))
 ```
 
 Risk of mortality is higher at eleveated metabolic rate in 42°C as compared to 18°C.  
@@ -1404,16 +2196,16 @@ Plot effects on next mortality status.
 
 ```{r}
 # Logistic regression model for predictions
-model_pred <- glmer(next_status ~ scale(value.mm3) * temperature + (1|hardening:bag:sample) + (1|hardening), family = binomial(link = "logit"), data = data3_lag)
+model_pred <- glmer(next_status ~ scale(value.mm3) * temperature + (1|hardening) + (1|bag:sample), family = binomial(link = "logit"), data = data_lag)
 
 # Generate predicted probabilities
-data3_lag$predicted_mortality <- predict(model_pred, type = "response")
+data_lag$predicted_mortality <- predict(model_pred, type = "response")
 
 # Plot
-plot12<-ggplot(data3_lag, aes(x = value.mm3, y = predicted_mortality, color = temperature, fill = temperature)) +
+plot12<-ggplot(data_lag, aes(x = value.mm3, y = predicted_mortality, color = temperature, fill = temperature)) +
   geom_point(aes(y = next_status), alpha = 0.6, position = position_jitter(height = 0.03)) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
-  scale_colour_manual(values=c("cyan4", "orange"))+
+    scale_colour_manual(values=c("cyan4", "orange"))+
   scale_fill_manual(values=c("cyan4", "orange"))+
   labs(
     title = "",
@@ -1423,43 +2215,134 @@ plot12<-ggplot(data3_lag, aes(x = value.mm3, y = predicted_mortality, color = te
     fill = "Temperature"
   ) +
   theme_classic();plot12
-
-ggsave(plot12, filename="figures/resazurin/mortality_predictions.png", width=6, height=5)
 ```
 
+In those that died during the trial, elevated metabolism was a high mortality risk.
 
 
+# Analysis: Differentiation in metabolic rates between oysters that lived, died by 4 h, or died by 24 h 
 
-
+Prepare data frame for mortality under stress.  
 
 ```{r}
-plot14<-data3_lag%>%
+mortality_data<-main_data%>%
+  filter(temperature=="42C")%>%
+  ungroup()%>%
+  dplyr::select(!c(width.mm, length.mm, value, volume.mm3))%>%
+  mutate(mortality = case_when(
+    final.mortality == "alive" ~ "alive", 
+    incubation.mortality == "dead" ~ "dead_4h", 
+    final.mortality == "dead" & incubation.mortality =="alive" ~ "dead_24h"
+  ))
+```
 
-  ggplot(aes(x=scale(value.mm3), y=next_status, color=temperature, fill=temperature))+
-  geom_point(alpha=0.1, position=position_dodge(0.2))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+### Detect outliers 
+
+Build a model including all predictors. 
+```{r}
+model15<-lmer(sqrt(value.mm3) ~ time * mortality + (1|hardening) + (1|date:bag:sample), data=mortality_data)
+
+qqPlot(residuals(model15))
+
+hist(mortality_data$value.mm3)
+```
+
+Identify using standardized residuals. 
+```{r}
+# Extract raw residuals
+mortality_data$raw_resid <- residuals(model15)
+
+# Standardize residuals
+mortality_data$std_resid <- mortality_data$raw_resid / sd(mortality_data$raw_resid)
+
+# Flag potential outliers
+outlier_threshold <- 3
+mortality_data$outlier_flag <- abs(mortality_data$std_resid) > outlier_threshold
+
+# Filter rows flagged as outliers
+outliers <- mortality_data %>% filter(outlier_flag == TRUE)
+print(outliers)
+
+# Plot standardized residuals
+ggplot(mortality_data, aes(x = seq_along(std_resid), y = std_resid)) +
+  geom_point(aes(color = outlier_flag), size = 2) +
+  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+  theme_minimal()
+```
+
+Remove identified outliers. 
+```{r}
+mortality_data<-mortality_data%>%
+  filter(!outlier_flag==TRUE)
+```
+
+```{r}
+hist(mortality_data$value.mm3)
+```
+
+### Analyze model  
+
+Plot raw data. 
+```{r}
+mortality_data%>%
+  ggplot(aes(x=time, y=value.mm3, colour=mortality, group=paste(date, bag, sample)))+
+  geom_point()+
+  geom_line()+
+  theme_classic()
+```
+
+```{r}
+model15<-lmer(sqrt(value.mm3) ~ time * mortality + (1|hardening) + (1|date:bag:sample), data=mortality_data)
+
+summary(model15)
+anova(model15)
+rand(model15)
+
+qqPlot(residuals(model15))
+```
+
+### Plot data 
+
+Plot metabolic rates between temperatures by those that survived, died within 4 h, and died within 24 h. 
+
+Plot first with individual points with geom smooth lines. 
+
+```{r}
+plot1<-mortality_data%>%
+
+  ggplot(aes(x=time, y=value.mm3, color=mortality, fill=mortality))+
+  geom_point(alpha=0.5)+
+  geom_smooth(aes(group=mortality))+
   theme_classic()+
-  xlab("Scaled Metabolic Rate")+
-  theme(
-    legend.title=element_blank(),
-    axis.text=element_text(size=14, colour="black"), 
-    axis.title=element_text(size=14, face="bold", colour="black")
-  );plot14
-
-ggsave(plot14, filename="figures/resazurin/mortality_effects.png", width=5, height=5)
+  xlab("Hour");plot1
 ```
 
+Next plot with mean and sem for each group. 
 
-### Conduct posthoc tests 
-
-#### Effects of temperature within time point
 ```{r}
-anova(model6)
+plot2<-mortality_data%>%
+  group_by(mortality, time)%>%
+  summarize(mean=mean(value.mm3, na.rm=TRUE), se=sd(value.mm3, na.rm=TRUE)/sqrt(length(value.mm3)))%>%
 
-emm<-emmeans(model6, ~temperature|time, adjust = "tukey")
+  ggplot(aes(x=time, y=mean, color=mortality, fill=mortality))+
+  geom_point(alpha=0.5)+
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
+  geom_line(aes(group=mortality))+
+  theme_classic()+
+  xlab("Hour");plot2
+```
+
+### Conduct post hoc tests
+
+#### Effects of hardening treatment within temperature 
+```{r}
+anova(model15)
+
+emm<-emmeans(model15, ~mortality|time, adjust = "tukey")
 pairs(emm)
 ```
 
-Metabolic rates are higher under 42°C in the first hour, and are lower afterwards.    
+Significant effects: 
 
+- Those that died by 4 h had higher mortality rates than those that survived or survived until 24 h. 
