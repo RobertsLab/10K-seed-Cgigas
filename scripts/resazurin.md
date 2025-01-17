@@ -3,13 +3,16 @@
 AS Huffmyer
 2024
 
-Interpretations tl;dr: - Survival was not different between hardening
-treatments - Minimal differences in hardening treatment metabolic
-rates - immune group at ambient temperature had slightly higher rates -
-Metabolic rates are different in stressed oysters - Metabolic rates are
-different in those that died vs those that survived under stress by 4
-h - We can measure changes in metabolism using resazurin assay -
-Metabolic rates can predict mortality at subsequent time point
+Interpretations tl;dr:
+
+- Survival was not different between hardening treatments  
+- Minimal differences in hardening treatment metabolic rates - immune
+  group at ambient temperature had slightly higher rates  
+- Metabolic rates are different in stressed oysters  
+- Metabolic rates are different in those that died vs those that
+  survived under stress by 4 h  
+- We can measure changes in metabolism using resazurin assay  
+- Metabolic rates can predict mortality at subsequent time point
 
 # Set up
 
