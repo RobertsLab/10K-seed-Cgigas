@@ -503,8 +503,8 @@ plot1<-alive_4h_data%>%
   facet_grid(~hardening)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1
 
@@ -536,8 +536,8 @@ plot2<-alive_4h_data%>%
   geom_point(alpha=0.5)+
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot2
 
@@ -821,8 +821,8 @@ plot1a<-high_4h_data%>%
   facet_grid(~hardening)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=incubation.mortality))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  scale_fill_manual(values=c("darkgray", "darkred"))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
   xlab("Hour");plot1a
 
@@ -841,8 +841,8 @@ plot2a<-high_4h_data%>%
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_point(alpha=0.5)+
   geom_line(aes(group=incubation.mortality))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  scale_fill_manual(values=c("darkgray", "darkred"))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
   xlab("Hour");plot2a
 ```
@@ -1071,8 +1071,8 @@ plot1<-alive_24h_data%>%
   facet_grid(~hardening)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1
 
@@ -1104,8 +1104,8 @@ plot2<-alive_24h_data%>%
   geom_point(alpha=0.5)+
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot2
 
@@ -1246,8 +1246,8 @@ plot1<-dead_24h_data%>%
   facet_grid(~hardening)+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1
 
@@ -1279,8 +1279,8 @@ plot2<-dead_24h_data%>%
   geom_point(alpha=0.5)+
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot2
 
@@ -1519,8 +1519,8 @@ plot1<-alive_4h_data%>%
   ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature, group=temperature))+
   geom_point(alpha=0.5)+
   stat_smooth(method="loess")+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1
 
@@ -1538,8 +1538,8 @@ plot2<-alive_4h_data%>%
   geom_point(alpha=0.5)+
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot2
 ```
@@ -1658,8 +1658,8 @@ plot1a<-dead_4h_data%>%
   ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1a
 
@@ -1677,8 +1677,8 @@ plot2a<-dead_4h_data%>%
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_point(alpha=0.5)+
   geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot2a
 ```
@@ -1791,8 +1791,8 @@ plot1a<-high_4h_data%>%
   ggplot(aes(x=time, y=value.mm3, color=incubation.mortality, fill=incubation.mortality))+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=incubation.mortality))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  scale_fill_manual(values=c("darkgray", "darkred"))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4",  "orange"))+
   theme_classic()+
   xlab("Hour");plot1a
 
@@ -1810,8 +1810,8 @@ plot2a<-high_4h_data%>%
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_point(alpha=0.5)+
   geom_line(aes(group=incubation.mortality))+
-  scale_colour_manual(values=c("darkgray", "darkred"))+
-  scale_fill_manual(values=c("darkgray", "darkred"))+
+  scale_colour_manual(values=c("cyan4", "orange"))+
+  scale_fill_manual(values=c("cyan4", "orange"))+
   theme_classic()+
   xlab("Hour");plot2a
 ```
@@ -2009,8 +2009,8 @@ plot1<-alive_24h_data%>%
   ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1
 
@@ -2028,8 +2028,8 @@ plot2<-alive_24h_data%>%
   geom_point(alpha=0.5)+
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot2
 ```
@@ -2139,8 +2139,8 @@ plot1<-dead_24h_data%>%
   ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature))+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot1
 
@@ -2158,8 +2158,8 @@ plot2<-dead_24h_data%>%
   geom_point(alpha=0.5)+
   geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=0.1)+
   geom_line(aes(group=temperature))+
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
   xlab("Hour");plot2
 ```
@@ -2250,8 +2250,8 @@ print(paste("AUC 95% CI:", round(ci_auc[1], 3), "-", round(ci_auc[3], 3)))
 plot12<-ggplot(data_lag, aes(x = value.mm3, y = predicted_mortality, color = temperature, fill = temperature)) +
   geom_point(aes(y = next_status), alpha = 0.6, position = position_jitter(height = 0.03)) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
-    scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   labs(
     title = "",
     x = expression(paste(Delta, " Fluorescence")),
@@ -2361,8 +2361,8 @@ plot1<-mortality_data%>%
   ggplot(aes(x=time, y=value.mm3, color=mortality, fill=mortality))+
   geom_point(alpha=0.5)+
   geom_smooth(aes(group=mortality))+
-  scale_colour_manual(values=c("darkgray", "darkred", "red"))+
-  scale_fill_manual(values=c("darkgray", "darkred", "red"))+
+  scale_colour_manual(values=c("cyan4", "darkgray", "orange"))+
+  scale_fill_manual(values=c("cyan4", "darkgray", "orange"))+
   theme_classic()+
   xlab("Hour");plot1
 
@@ -2440,8 +2440,8 @@ surv_data$predicted_mortality <- predict(model_surv, type = "response")
 plot3<-ggplot(surv_data, aes(x = as.numeric(time), y = predicted_mortality, color = temperature, fill = temperature)) +
   geom_point(aes(y = status), alpha = 0.6, position = position_jitter(height = 0.03)) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   labs(
     title = "",
     y = "Probability of Mortality",
@@ -2521,8 +2521,8 @@ plot3b<-ggplot(surv_data, aes(x = as.numeric(time), y = predicted_mortality, col
   facet_wrap(~hardening)+
   geom_point(aes(y = status), alpha = 0.6, position = position_jitter(height = 0.03)) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
-  scale_colour_manual(values=c("cyan4", "orange"))+
-  scale_fill_manual(values=c("cyan4", "orange"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"))+
+  scale_fill_manual(values=c("darkgrey", "darkred"))+
   labs(
     title = "",
     y = "Probability of Mortality",
