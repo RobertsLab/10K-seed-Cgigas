@@ -1520,9 +1520,10 @@ plot1<-alive_4h_data%>%
   ggplot(aes(x=time, y=value.mm3, color=temperature, fill=temperature, group=temperature))+
   geom_point(alpha=0.5)+
   stat_smooth(method="loess")+
-  scale_colour_manual(values=c("darkgrey", "darkred"))+
-  scale_fill_manual(values=c("darkgrey", "darkred"))+
+  scale_colour_manual(values=c("darkgrey", "darkred"), name="")+
+  scale_fill_manual(values=c("darkgrey", "darkred"), name="")+
   theme_classic()+
+  ylab(expression(paste(Delta, " Fluorescence mm" ^-2)))+
   xlab("Hour");plot1
 
 ggsave(plot1, filename="figures/resazurin/temperature_alive4h.png", width=5, height=4)
