@@ -506,6 +506,7 @@ plot1<-alive_4h_data%>%
   scale_colour_manual(values=c("darkgrey", "darkred"))+
   scale_fill_manual(values=c("darkgrey", "darkred"))+
   theme_classic()+
+  ylab(expression(paste(Delta, " Fluorescence mm" ^-2)))+
   xlab("Hour");plot1
 
 ggsave(plot1, filename="figures/resazurin/hardening_temperature_alive4h_oysters.png", width=8, height=6)
