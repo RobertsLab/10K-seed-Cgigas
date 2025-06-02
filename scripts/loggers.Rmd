@@ -38,12 +38,12 @@ library(cowplot)
 
 Read in Hobo Tidbit files  
 ```{r}
-tidbit.files <- list.files(path="data/loggers", pattern="*.csv", full.names=TRUE)
+tidbit.files <- list.files(path="data/loggers", pattern="*.xlsx", full.names=TRUE)
 
 #will need to change to HST time 
 tidbits <- setNames(tidbit.files, tidbit.files) %>%
-    map_dfr(read_csv, .id = "logger") %>%
-    rename(DateTime=`Date-Time (PDT)`, temp.C=`Temp   (°C)`)%>%
+    map_dfr(read_xlsx, .id = "logger") %>%
+    rename(DateTime=`Date-Time (PDT)`, temp.C=`Temperature , °C`)%>%
     select(!`#`)%>%
     select(logger, DateTime, temp.C)%>%
     mutate(logger=sub(".*/", "", logger))%>% #remove the path name
@@ -59,13 +59,13 @@ List the logger serial numbers in this dataframe.
 levels(as.factor(tidbits$logger))
 ```
 
-There is 1 logger as expected.  
+There are 2 loggers as expected.  
 
 Add in group information. 
 
 ```{r}
 tidbits <- tidbits %>%
-  mutate(group = c("10K"))
+  mutate(group = c("10K Dock"))
 
 levels(as.factor(tidbits$group))
 ```
@@ -83,8 +83,8 @@ temp_plot<-tidbits%>%
   geom_smooth(color="black")+
   ylab("Temperature (°C)")+
   xlab("Date")+
-  ggtitle("Lagoon")+
-  ylim(8,32)+
+  ggtitle("10K Lagoon Dock")+
+  ylim(0,32)+
   theme_classic(); temp_plot
 
 ggsave(temp_plot, filename="figures/environmental/10K-loggers.png", width=6, height=4)
