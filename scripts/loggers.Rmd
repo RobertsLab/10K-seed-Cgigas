@@ -91,3 +91,60 @@ ggsave(temp_plot, filename="figures/environmental/10K-loggers.png", width=6, hei
 ```
 
 In the lagoon, temperatures reached a max of about 25-26C in late July with a minimum around 15C.  
+# Baywater Outplant 
+
+## Read in files 
+
+Read in Hobo Tidbit files  
+```{r}
+tidbit.files <- list.files(path="data/loggers/outplant", pattern="*.xlsx", full.names=TRUE)
+
+#will need to change to HST time 
+tidbits <- setNames(tidbit.files, tidbit.files) %>%
+    map_dfr(read_xlsx, .id = "logger") %>%
+    rename(DateTime=`Date-Time (PDT)`, temp.C=`Temp , °C`)%>%
+    select(!`#`)%>%
+    select(logger, DateTime, temp.C)%>%
+    mutate(logger=sub(".*/", "", logger))%>% #remove the path name
+    mutate(logger=sub("_.*", "", logger))%>% #keep only the serial number 
+    filter(!temp.C=="NA")
+
+tidbits$DateTime<-as.POSIXct(tidbits$DateTime, format="%m/%d/%Y %H:%M:%S")
+
+```
+
+List the logger serial numbers in this dataframe.  
+```{r}
+levels(as.factor(tidbits$logger))
+```
+
+There are 3 loggers as expected.  
+
+Add in group information. 
+
+```{r}
+tidbits <- tidbits %>%
+  mutate(group = c("10K Outplant"))
+
+levels(as.factor(tidbits$group))
+```
+
+Group information is now added.  
+
+## Plot data 
+
+All groups 
+```{r}
+temp_plot<-tidbits%>%
+  
+  ggplot(aes(x=DateTime, y=temp.C))+
+  geom_point(alpha=0.7, color="darkgray", size=1)+
+  geom_smooth(color="black")+
+  ylab("Temperature (°C)")+
+  xlab("Date")+
+  ggtitle("10K Outplants - Baywater")+
+  ylim(-5,32)+
+  theme_classic(); temp_plot
+
+ggsave(temp_plot, filename="figures/environmental/10K-outplant-loggers.png", width=6, height=4)
+```

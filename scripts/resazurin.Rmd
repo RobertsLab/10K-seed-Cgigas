@@ -293,6 +293,7 @@ Set time as a factor.
 main_data$time<-as.factor(main_data$time)
 ```
 
+
 # Analysis: Effects of hardening treatments 
 
 ## Examine size effects 
@@ -365,13 +366,17 @@ Temperature and size affect metabolic rate.
 Plot metabolic rates (y) over size range (x). 
 
 ```{r}
-final%>%
+plot1<-final%>%
   
   ggplot(aes(x=volume.mm3, y=sqrt(value)))+
-  #facet_wrap(~temperature)+
-  geom_point()+
-  geom_smooth(method="lm")+
-  theme_classic()
+  geom_point(colour="darkgray")+
+  geom_smooth(method="lm", colour="black", fill="darkgray")+
+  geom_text(aes(x=7e+04, y=3.8), label="p<0.001")+
+  ylab(expression(paste(Delta, "Fluorescence")))+
+  xlab(expression(paste("Volume (mm" ^-3, ")")))+
+  theme_classic();plot1
+
+ggsave(plot1, filename="figures/resazurin/size_10k_oysters.png", width=8, height=6)
 ```
 
 There is a positive relationship between metabolic rate and size, but it is not particularly strong. 
