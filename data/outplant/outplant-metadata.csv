@@ -1,31 +1,31 @@
-purple.tag,source.bag,treatment,number.oysters
-1,75,FW 35C,150
-2,75,FW 35C,150
-3,75,FW 35C,150
-4,76,FW 35C,150
-5,76,FW 35C,150
-6,76,FW 35C,150
-7,47,35C,150
-8,47,35C,150
-9,47,35C,150
-10,30,35C,150
-11,30,35C,150
-12,30,35C,150
-13,49,Immune,150
-14,49,Immune,150
-15,49,Immune,150
-16,50,Immune,150
-17,50,Immune,150
-18,50,Immune,150
-19,66,FW,150
-20,66,FW,150
-21,66,FW,150
-22,56,FW,150
-23,56,FW,150
-24,56,FW,150
-25,37,Control,150
-26,37,Control,150
-27,37,Control,150
-28,36,Control,150
-29,36,Control,150
-30,36,Control,150
+purple.tag,source.bag,treatment,number.oysters,20250820.tag,20250820.notes,20250820.loggers
+1,75,FW 35C,150,400,,
+2,75,FW 35C,150,328,,
+3,75,FW 35C,150,304,,
+4,76,FW 35C,150,301,,
+5,76,FW 35C,150,306,,
+6,76,FW 35C,150,318,,22023410
+7,47,35C,150,311,,
+8,47,35C,150,309,,
+9,47,35C,150,316,,
+10,30,35C,150,315,,
+11,30,35C,150,319,,
+12,30,35C,150,317,,
+13,49,Immune,150,NA,"not rebagged, <10 oysters",
+14,49,Immune,150,305,,
+15,49,Immune,150,302,,
+16,50,Immune,150,NA,"not rebagged, <10 oysters",
+17,50,Immune,150,NA,"empty, no oysters",
+18,50,Immune,150,303,,
+19,66,FW,150,NA,"not rebagged, <10 oysters",
+20,66,FW,150,312,,
+21,66,FW,150,NA,"not rebagged, <10 oysters",
+22,56,FW,150,307,,
+23,56,FW,150,308,,
+24,56,FW,150,314,,
+25,37,Control,150,NA,"bag open, no oysters remaining",
+26,37,Control,150,329,,
+27,37,Control,150,310,,22023411
+28,36,Control,150,313,,
+29,36,Control,150,320,,
+30,36,Control,150,330,,22023406
