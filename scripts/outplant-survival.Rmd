@@ -1,0 +1,70 @@
+---
+title: "10K seed outplant survival analysis"
+author: "AS Huffmyer"
+date: '2025'
+output:
+  md_document: default
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 6
+    toc_float: true
+  github_document: null
+editor_options:
+  chunk_output_type: console
+---
+
+# Set up 
+
+Set up workspace, set options, and load required packages.    
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+Load libraries. 
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(survival)
+library(readxl)
+library(ggsurvfit)
+library(gtsummary)
+library(cardx)
+library(cowplot)
+```
+
+# Read in data 
+
+Read in survival data
+```{r}
+data<-read.csv("data/outplant/outplant-survival.csv")
+```
+
+# Calculate survival
+
+```{r}
+data<-data%>%
+  mutate(survival=alive.20250820/starting.oysters)
+```
+
+# Plot survival 
+
+```{r}
+plot1<-data%>%
+  
+  ggplot(aes(x=treatment, y=survival, colour=treatment))+
+  geom_boxplot()+
+  geom_point()+
+  ylim(0,1)+
+  theme_classic()+
+  theme(legend.position="none");plot1
+```
+
+Run non parametric test of survival. 
+
+```{r}
+kruskal.test(survival~treatment, data=data)
+```
+
+Non-significant, trend for lower survival in the immune challenged oysters. 
+
