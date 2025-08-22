@@ -111,6 +111,8 @@ tidbits <- setNames(tidbit.files, tidbit.files) %>%
 
 tidbits$DateTime<-as.POSIXct(tidbits$DateTime, format="%m/%d/%Y %H:%M:%S")
 
+tidbits%>%write_csv(file="output/baywater_temperature_20250822.csv")
+
 ```
 
 List the logger serial numbers in this dataframe.  
@@ -147,4 +149,6 @@ temp_plot<-tidbits%>%
   theme_classic(); temp_plot
 
 ggsave(temp_plot, filename="figures/environmental/10K-outplant-loggers.png", width=6, height=4)
+
 ```
+
