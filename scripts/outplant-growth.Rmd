@@ -1,0 +1,261 @@
+---
+title: "10K seed outplant growth analysis"
+author: "AS Huffmyer"
+date: '2025'
+output:
+  md_document: default
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 6
+    toc_float: true
+  github_document: null
+editor_options:
+  chunk_output_type: console
+---
+
+I still need to load in initial sizes, this analysis currently examines final size, not normalized to initial size. 
+
+# Set up 
+
+Set up workspace, set options, and load required packages.    
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+Load libraries. 
+```{r}
+if ("tidyverse" %in% rownames(installed.packages()) == 'FALSE') install.packages('tidyverse') 
+if ("ggplot2" %in% rownames(installed.packages()) == 'FALSE') install.packages('ggplot2') 
+if ("ggeffects" %in% rownames(installed.packages()) == 'FALSE') install.packages('ggeffects') 
+
+library("ggplot2")
+library("tidyverse")
+library("lme4")
+library("lmerTest")
+library("emmeans")
+library("car")
+library("mgcv")
+library("ggeffects")
+library("cowplot")
+library("readxl")
+```
+
+# Load data 
+
+Read in data files. 
+```{r}
+data<-read_csv("data/outplant/outplant-growth.csv")%>%
+  mutate(date=as.factor(date))
+```
+
+Set data attributes. 
+```{r}
+data$purple.tag<-factor(data$purple.tag)
+```
+
+Add in treatment information 
+```{r}
+metadata<-read_csv("data/outplant/outplant-metadata.csv")
+metadata$purple.tag<-factor(metadata$purple.tag)
+
+data$treatment<-metadata$treatment[match(data$purple.tag, metadata$purple.tag)]
+data$source.bag<-metadata$source.bag[match(data$purple.tag, metadata$purple.tag)]
+```
+
+# Plot data 
+
+Plot a histogram of each data column to identify any outliers. 
+```{r}
+hist(data$length.mm)
+hist(data$width.mm)
+```
+
+No obvious outliers. 
+
+Plot a box plot of length and width as a function of bag number, colored by treatment. 
+
+```{r}
+plot1<-data%>%
+  ggplot(aes(x=purple.tag, y=length.mm, fill = treatment)) +
+  facet_wrap(~date)+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
+  xlab("Bag") + 
+  theme_classic(); plot1
+```
+
+Bag 12 is an outlier in the field and was much larger than all others. Remove for analysis. 
+
+```{r}
+data<-data%>%
+  filter(!purple.tag=="12")
+```
+
+Plot again
+```{r}
+plot1<-data%>%
+  ggplot(aes(x=purple.tag, y=length.mm, fill = treatment)) +
+  facet_wrap(~date)+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
+  xlab("Bag") + 
+  theme_classic(); plot1
+```
+
+Plot width. 
+```{r}
+plot2<-data%>%
+  ggplot(aes(x=purple.tag, y=width.mm, fill = treatment)) +
+  facet_wrap(~date)+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
+  xlab("Bag") + 
+  theme_classic(); plot2
+```
+
+# Generate a metric of volume
+
+Use the equation to predict depth from length and width using growth data from Goose Point from the same source population. Use to calculate volume from length and width measured here.  
+
+Obtain training data with known length width and depth from 20240909 dataset. 
+```{r}
+training_data<-read_csv(file="https://raw.githubusercontent.com/RobertsLab/project-gigas-conditioning/refs/heads/main/data/outplanting/GoosePoint/growth_GoosePoint.csv")%>%
+  mutate(date=as.factor(date))%>%
+  filter(date %in% c("20240909", "20251009"))
+
+training_data$volume <- (4/3) * pi * (training_data$length.mm/2) * (training_data$width.mm/2) * (training_data$depth.mm/2)
+
+training_data<-training_data%>%
+  filter(!is.na(volume))
+
+hist(training_data$volume)
+```
+
+Fit a polynomial regression and a GAM model and compare the fits. 
+```{r}
+# Fit a polynomial regression model (2nd-degree polynomial)
+poly_model <- lm(volume ~ poly(length.mm, 2) + poly(width.mm, 2) + length.mm:width.mm, data = training_data)
+
+summary(poly_model)
+```
+
+Plot predicted vs actual volume from training data. 
+```{r}
+training_data$Predicted_Volume_Poly <- predict(poly_model, training_data)
+plot(training_data$Predicted_Volume_Poly ~ training_data$volume)
+```
+
+Predict volume for our test data set. 
+
+```{r}
+data$Predicted_Volume_Poly <- predict(poly_model, data)
+hist(data$Predicted_Volume_Poly)
+```
+
+Remove any observation that resulted in a negative value. 
+
+```{r}
+data<-data%>%filter(Predicted_Volume_Poly>0)
+hist(data$Predicted_Volume_Poly)
+```
+
+Proceed with the calculated volume data.  
+
+Remove upper outliers. 
+
+```{r}
+data<-data%>%
+  filter(Predicted_Volume_Poly<125000)
+```
+
+# Analyze volume for each treatment
+
+## Plot data 
+
+```{r}
+plot4<-data%>%
+  ggplot(aes(x=purple.tag, y=Predicted_Volume_Poly, fill = treatment)) +
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
+  xlab("Bag") + 
+  theme_classic(); plot4
+
+ggsave(plot4, filename="figures/growth/bag_sizes.png", width=8, height=5, units="in")
+```
+
+Plot summarized by treatment 
+
+```{r}
+plot5<-data%>%
+  ggplot(aes(x=treatment, y=Predicted_Volume_Poly, fill = treatment)) +
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
+  xlab("Treatment") + 
+  theme_classic() +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plot5
+
+ggsave(plot5, filename="figures/growth/treatment_sizes.png", width=6, height=4, units="in")
+```
+
+No clear differences in treatment. 
+
+## Run linear mixed models models 
+
+```{r}
+model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment + (1|purple.tag:treatment), data=data)
+
+summary(model)
+anova(model)
+
+qqPlot(residuals(model))
+hist(residuals(model))
+```
+
+No difference by treatment. 
+
+There might be several outliers. Conduct outlier removal and analyze again.  
+
+```{r}
+# Extract raw residuals
+data$raw_resid <- residuals(model)
+
+# Standardize residuals
+data$std_resid <- data$raw_resid / sd(data$raw_resid)
+
+# Flag potential outliers
+outlier_threshold <- 3
+data$outlier_flag <- abs(data$std_resid) > outlier_threshold
+
+# Filter rows flagged as outliers
+outliers <- data %>% filter(outlier_flag == TRUE)
+print(outliers)
+
+# Plot standardized residuals
+ggplot(data, aes(x = seq_along(std_resid), y = std_resid)) +
+  geom_point(aes(color = outlier_flag), size = 2) +
+  geom_hline(yintercept = c(-outlier_threshold, outlier_threshold), linetype = "dashed", color = "red") +
+  labs(title = "Standardized Residuals with Outliers", x = "Index", y = "Standardized Residual") +
+  theme_minimal()
+```
+No outliers. 
+
+Remove identified outliers. 
+```{r}
+data<-data%>%
+  filter(!outlier_flag==TRUE)
+```
+
+Analyze again. 
+
+```{r}
+model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment + (1|purple.tag:treatment), data=data)
+
+summary(model)
+anova(model)
+
+qqPlot(residuals(model))
+hist(residuals(model))
+```
+
+No treatment effects.  
