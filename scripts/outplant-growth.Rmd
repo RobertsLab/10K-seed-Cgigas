@@ -259,3 +259,16 @@ hist(residuals(model))
 ```
 
 No treatment effects.  
+
+# Output growth data 
+
+```{r}
+data%>%
+  dplyr::select(date, purple.tag, tag.20250820, oyster, treatment, Predicted_Volume_Poly)%>%
+  mutate(treatment=if_else(treatment=="35C", "Temperature", 
+                           if_else(treatment=="Control", "Control", 
+                                   if_else(treatment=="FW", "Salinity", 
+                                           if_else(treatment=="FW 35C", "Temperature+Salinity", 
+                                                   if_else(treatment=="Immune", "Immune PolyIC", NA))))))%>%
+  write_csv("output/baywater_growth.csv")
+```
