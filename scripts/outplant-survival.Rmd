@@ -71,6 +71,11 @@ Output survival data
 
 ```{r}
 data%>%
+  mutate(treatment=if_else(treatment=="35C", "Temperature", 
+                           if_else(treatment=="Control", "Control", 
+                                   if_else(treatment=="FW", "Salinity", 
+                                           if_else(treatment=="FW 35C", "Temperature+Salinity", 
+                                                   if_else(treatment=="Immune", "Immune PolyIC", NA))))))%>%
   write_csv("output/baywater_survival.csv")
 ```
 
