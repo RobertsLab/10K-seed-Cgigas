@@ -91,6 +91,7 @@ ggsave(temp_plot, filename="figures/environmental/10K-loggers.png", width=6, hei
 ```
 
 In the lagoon, temperatures reached a max of about 25-26C in late July with a minimum around 15C.  
+
 # Baywater Outplant 
 
 ## Read in files 
@@ -111,7 +112,7 @@ tidbits <- setNames(tidbit.files, tidbit.files) %>%
 
 tidbits$DateTime<-as.POSIXct(tidbits$DateTime, format="%m/%d/%Y %H:%M:%S")
 
-tidbits%>%write_csv(file="output/baywater_temperature_20250822.csv")
+tidbits%>%write_csv(file="output/baywater_temperature_20250922.csv")
 
 ```
 
@@ -120,7 +121,7 @@ List the logger serial numbers in this dataframe.
 levels(as.factor(tidbits$logger))
 ```
 
-There are 3 loggers as expected.  
+There are 2 loggers as expected.  
 
 Add in group information. 
 
