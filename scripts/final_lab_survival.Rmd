@@ -1,0 +1,273 @@
+---
+title: Final lab survival analysis
+author: "AS Huffmyer"
+date: '2026'
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 6
+    toc_float: yes
+  pdf_document:
+    keep_tex: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+# Set up 
+
+Set up workspace, set options, and load required packages.    
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+Load libraries. 
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(survival)
+library(readxl)
+library(ggsurvfit)
+library(gtsummary)
+library(cardx)
+library(cowplot)
+library(lme4)
+library(lmerTest)
+library(car)
+library(emmeans)
+```
+
+# Read in data 
+
+Read in data. 
+```{r}
+data<-read_csv("data/final-lab-survival/final_lab_survival.csv")%>%
+  mutate(time=as.numeric(time))
+```
+
+Read in metadata. 
+```{r}
+metadata<-read_csv("data/final-lab-survival/final-lab-survival-metadata.csv")%>%select(!c(notes))
+```
+
+Merge in metadata. 
+```{r}
+data<-left_join(data, metadata)
+head(data)
+```
+
+"group" here refers to the original hardening treatment. All oysters were run in the survival assay at 34-36°C.  
+
+# Plot temperatures 
+
+Plot temperatures for each round 
+
+```{r}
+temps<-read_csv("data/final-lab-survival/temperature.csv")
+```
+
+Set theme. 
+```{r}
+my_theme<-theme_classic()+
+  theme(
+    axis.title.y = element_text(size = 14, color = "black"),
+    axis.text.y = element_text(size=12, color = "black"),
+    axis.text.x = element_text(size=12, color = "black"),
+    axis.title.x =element_text(size = 14, color = "black"),
+    legend.position = "none")
+```
+
+Plot faceted by round. 
+
+```{r}
+plot<-temps%>%
+  
+  ggplot(aes(x=time, y=temp.C, color=round))+
+  facet_grid(~round)+
+  geom_point()+
+  stat_summary(fun = mean, geom = "line", linewidth = 1)+
+  my_theme+
+  theme(legend.position="right");plot
+
+ggsave(filename="figures/final-lab-survival/temperature_rounds.png", width=10, height=5)
+```
+
+Reset levels.
+```{r}
+data$group<-relevel(as.factor(data$group), ref="10K Control")
+```
+
+# Generate survival curves
+
+```{r}
+s1 <- survival::survfit(Surv(time, status) ~ group, data = data)
+str(s1)
+```
+
+Plot the survival function
+```{r}
+ggsurvfit::survfit2(Surv(time, status) ~ group, data = data) %>% 
+  ggsurvfit::ggsurvfit() +
+  labs(
+    x = "Hours",
+    y = "Survival probability"
+  )
+```
+
+Estimate survival at 48 hours. 
+```{r}
+summary(survival::survfit(Surv(time, status) ~ group, data = data), times = 48)
+```
+
+Use a log rank model to determine statistical differences in curves. 
+```{r}
+survival::survdiff(Surv(time, status) ~ group, data = data)
+```
+
+Analyze again with a Cox proportional hazards model. 
+```{r}
+survival::coxph(Surv(time, status) ~ group, data = data)
+
+survival::coxph(Surv(time, status) ~ group, data = data) %>% 
+  tbl_regression(exp = TRUE) 
+```
+
+## Generate plots 
+
+### Treatment 
+
+Round 1
+```{r}
+plot1<-ggsurvfit::survfit2(Surv(time, status) ~ group, data = data%>%filter(round=="round1")) %>% 
+  ggsurvfit::ggsurvfit() +
+  labs(
+    x = "Hours",
+    y = "Survival probability",
+    title=""
+  )+
+  ylim(0,1)+
+  my_theme+
+  #scale_linetype_manual(values=c("solid", "dashed"))+
+  #scale_colour_manual(values=c("darkgray", "orange"))+
+  theme(legend.position="right");plot1
+```
+
+Round 2
+
+All rounds
+
+# Run binomial logistic models 
+
+Run a binomial logistic model to account for variation between rounds. Include round and oyster size (length in mm) as random effects. 
+
+0 = alive
+1 = mortality 
+
+```{r}
+#surv_model<-glmer(status ~ time * group + (1|round) + (1|length.mm), family = binomial(link = "logit"), data=data)
+surv_model<-glmer(status ~ time * group + (1|length.mm), family = binomial(link = "logit"), data=data)
+
+summary(surv_model)
+Anova(surv_model)
+
+emm<-emmeans(surv_model, ~group)
+pairs(emm)
+
+```
+
+Evaluate random effects of round and length (mm). 
+```{r}
+# Plot the random effects
+ranef(surv_model)
+
+library(sjPlot)
+
+plot_model(surv_model, type = "re")
+
+library(performance)
+r2(surv_model)
+```
+
+Generate predictive mortality plot. 
+
+```{r}
+# Generate predicted probabilities
+data$predicted_mortality <- predict(surv_model, type = "response")
+
+# Plot
+plot2<-ggplot(data, aes(x = time, y = predicted_mortality, color = group, fill = group, group=group)) +
+  geom_point(aes(y = status), alpha = 0.6, position = position_jitter(height = 0.03)) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = FALSE) +
+  #scale_color_manual(values=c("cyan3", "coral"))+
+  labs(
+    title = "",
+    y = "Probability of Mortality",
+  ) +
+  theme_classic();plot2
+
+ggsave(plot2, filename="figures/final-lab-survival/survival_group.png", width=8, height=6)
+```
+
+# LT50 Analysis
+
+Calculate the time of 50% mortality (LT50) for each treatment from the binomial model. LT50 is solved by finding where the model's predicted probability of mortality = 0.5, using population-level predictions (random effects for round excluded via `re.form = NA`).
+
+```{r lt50-table}
+# Function to find LT50 for a given family and treatment using uniroot
+# re.form = NA excludes round-level random effects (population-level estimate)
+get_lt50 <- function(model, group_val, time_range = c(0, 300)) {
+  pred_fn <- function(t) {
+    newdata <- data.frame(
+      time      = t,
+      group = group_val
+    )
+    predict(model, newdata = newdata, type = "response", re.form = NA) - 0.5
+  }
+
+  # Verify the predicted curve actually crosses 0.5 within the search range
+  lo <- tryCatch(pred_fn(time_range[1]), error = function(e) NA_real_)
+  hi <- tryCatch(pred_fn(time_range[2]), error = function(e) NA_real_)
+  if (anyNA(c(lo, hi)) || sign(lo) == sign(hi)) return(NA_real_)
+
+  tryCatch(
+    uniroot(pred_fn, interval = time_range)$root,
+    error = function(e) NA_real_
+  )
+}
+```
+
+```{r}
+# Compute LT50 for every family × treatment combination
+lt50_results <- data %>%
+  distinct(group) %>%
+  rowwise() %>%
+  mutate(
+    LT50_hrs = get_lt50(surv_model, as.character(group))
+  ) %>%
+  ungroup()
+
+# Identify the non-control treatment label automatically
+treated_label <- setdiff(unique(data$group), "10K Control")
+
+# Pivot wide so control and treated LT50 sit side by side per family
+lt50_table <- lt50_results %>%
+  pivot_wider(names_from = group, values_from = LT50_hrs) %>%
+  rename(
+    LT50_control  = `10K Control`,
+    LT50_35C  = `10K 35C`,
+    LT50_FW  = `10K FW`,
+    LT50_PolyIC  = `10K PolyIC`,
+    LT50_FW35C  = `10K FW 35C`,
+  ) %>%
+  mutate(
+    LT50_control  = round(LT50_control,  1),
+    LT50_35C  = round(LT50_35C,  1),
+    LT50_FW  = round(LT50_FW,  1),
+    LT50_PolyIC  = round(LT50_PolyIC,  1),
+    LT50_FW35C  = round(LT50_FW35C,  1)
+  ) 
+
+knitr::kable(
+  lt50_table
+)
+```  
