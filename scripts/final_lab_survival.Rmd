@@ -153,8 +153,36 @@ plot1<-ggsurvfit::survfit2(Surv(time, status) ~ group, data = data%>%filter(roun
 ```
 
 Round 2
+```{r}
+plot1<-ggsurvfit::survfit2(Surv(time, status) ~ group, data = data%>%filter(round=="round2")) %>% 
+  ggsurvfit::ggsurvfit() +
+  labs(
+    x = "Hours",
+    y = "Survival probability",
+    title=""
+  )+
+  ylim(0,1)+
+  my_theme+
+  #scale_linetype_manual(values=c("solid", "dashed"))+
+  #scale_colour_manual(values=c("darkgray", "orange"))+
+  theme(legend.position="right");plot1
+```
 
 All rounds
+```{r}
+plot1<-ggsurvfit::survfit2(Surv(time, status) ~ group, data = data) %>% 
+  ggsurvfit::ggsurvfit() +
+  labs(
+    x = "Hours",
+    y = "Survival probability",
+    title=""
+  )+
+  ylim(0,1)+
+  my_theme+
+  #scale_linetype_manual(values=c("solid", "dashed"))+
+  #scale_colour_manual(values=c("darkgray", "orange"))+
+  theme(legend.position="right");plot1
+```
 
 # Run binomial logistic models 
 
@@ -164,8 +192,7 @@ Run a binomial logistic model to account for variation between rounds. Include r
 1 = mortality 
 
 ```{r}
-#surv_model<-glmer(status ~ time * group + (1|round) + (1|length.mm), family = binomial(link = "logit"), data=data)
-surv_model<-glmer(status ~ time * group + (1|length.mm), family = binomial(link = "logit"), data=data)
+surv_model<-glmer(status ~ time * group + (1|round) + (1|length.mm), family = binomial(link = "logit"), data=data)
 
 summary(surv_model)
 Anova(surv_model)
@@ -271,3 +298,4 @@ knitr::kable(
   lt50_table
 )
 ```  
+
