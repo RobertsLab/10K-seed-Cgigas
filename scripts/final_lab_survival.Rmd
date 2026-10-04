@@ -235,6 +235,26 @@ plot2<-ggplot(data, aes(x = time, y = predicted_mortality, color = group, fill =
 ggsave(plot2, filename="figures/final-lab-survival/survival_group.png", width=8, height=6)
 ```
 
+Show only significantly different groups. 
+
+```{r}
+# Generate predicted probabilities
+data$predicted_mortality <- predict(surv_model, type = "response")
+
+# Plot
+plot2<-ggplot(data%>%filter(group %in% c("10K Control", "10K PolyIC")), aes(x = time, y = predicted_mortality, color = group, fill = group, group=group)) +
+  geom_point(aes(y = status), alpha = 0.6, position = position_jitter(height = 0.03)) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"), se = TRUE) +
+  scale_color_manual(values=c("coral", "purple"))+
+  scale_fill_manual(values=c("coral", "purple"))+
+  labs(
+    title = "",
+    y = "Probability of Mortality",
+  ) +
+  theme_classic();plot2
+```
+
+
 # LT50 Analysis
 
 Calculate the time of 50% mortality (LT50) for each treatment from the binomial model. LT50 is solved by finding where the model's predicted probability of mortality = 0.5, using population-level predictions (random effects for round excluded via `re.form = NA`).
