@@ -14,8 +14,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-I still need to load in initial sizes, this analysis currently examines final size, not normalized to initial size. 
-
 # Set up 
 
 Set up workspace, set options, and load required packages.    
@@ -43,6 +41,15 @@ library("readxl")
 
 # Load data 
 
+Read in files to be reformatted. 
+```{r}
+#data<-read_csv("data/outplant/growth.csv")
+  
+#data<-data%>%pivot_wider(names_from="measurement", values_from="value")%>%select(date, tag, oyster, length, width, image, notes)%>%filter(!is.na(length))%>%filter(!is.na(width))
+
+#write_csv(data, file="data/outplant/growth_alt.csv")
+```
+
 Read in data files. 
 ```{r}
 data<-read_csv("data/outplant/outplant-growth.csv")%>%
@@ -69,6 +76,9 @@ Plot a histogram of each data column to identify any outliers.
 ```{r}
 hist(data$length.mm)
 hist(data$width.mm)
+
+max(data$length.mm)
+max(data$width.mm)
 ```
 
 No obvious outliers. 
@@ -85,11 +95,11 @@ plot1<-data%>%
   theme_classic(); plot1
 ```
 
-Bag 12 is an outlier in the field and was much larger than all others. Remove for analysis. 
+Bag 12 is an outlier in the field and was much larger than all others. Not a clear reason why or a unit issue. Remove for analysis. 
 
 ```{r}
 data<-data%>%
-  filter(!purple.tag=="12")
+  filter(!(purple.tag=="12" & date=="20250820"))
 ```
 
 Plot again
@@ -122,7 +132,7 @@ Obtain training data with known length width and depth from 20240909 dataset.
 ```{r}
 training_data<-read_csv(file="https://raw.githubusercontent.com/RobertsLab/project-gigas-conditioning/refs/heads/main/data/outplanting/GoosePoint/growth_GoosePoint.csv")%>%
   mutate(date=as.factor(date))%>%
-  filter(date %in% c("20240909", "20251009"))
+  filter(date %in% c("20240909", "20251009", "20260522"))
 
 training_data$volume <- (4/3) * pi * (training_data$length.mm/2) * (training_data$width.mm/2) * (training_data$depth.mm/2)
 
@@ -166,7 +176,9 @@ Remove upper outliers.
 
 ```{r}
 data<-data%>%
-  filter(Predicted_Volume_Poly<125000)
+  filter(Predicted_Volume_Poly<150000)
+
+hist(data$Predicted_Volume_Poly)
 ```
 
 # Analyze volume for each treatment
@@ -175,27 +187,29 @@ data<-data%>%
 
 ```{r}
 plot4<-data%>%
-  ggplot(aes(x=purple.tag, y=Predicted_Volume_Poly, fill = treatment)) +
+  ggplot(aes(x=date, y=Predicted_Volume_Poly, fill = treatment)) +
+  facet_wrap(~purple.tag)+
   geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
   geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
   xlab("Bag") + 
   theme_classic(); plot4
 
-ggsave(plot4, filename="figures/growth/bag_sizes.png", width=8, height=5, units="in")
+ggsave(plot4, filename="figures/growth/bag_sizes.png", width=8, height=8, units="in")
 ```
 
 Plot summarized by treatment 
 
 ```{r}
 plot5<-data%>%
-  ggplot(aes(x=treatment, y=Predicted_Volume_Poly, fill = treatment)) +
+  ggplot(aes(x=date, y=Predicted_Volume_Poly, fill = treatment)) +
+  facet_wrap(~treatment)+
   geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
   geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
   xlab("Treatment") + 
   theme_classic() +
   theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plot5
 
-ggsave(plot5, filename="figures/growth/treatment_sizes.png", width=6, height=4, units="in")
+ggsave(plot5, filename="figures/growth/treatment_sizes.png", width=6, height=6, units="in")
 ```
 
 No clear differences in treatment. 
@@ -203,7 +217,7 @@ No clear differences in treatment.
 ## Run linear mixed models models 
 
 ```{r}
-model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment + (1|purple.tag:treatment), data=data)
+model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment * date + (1|purple.tag:treatment), data=data)
 
 summary(model)
 anova(model)
@@ -249,7 +263,7 @@ data<-data%>%
 Analyze again. 
 
 ```{r}
-model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment + (1|purple.tag:treatment), data=data)
+model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment *date + (1|purple.tag:treatment), data=data)
 
 summary(model)
 anova(model)
@@ -272,3 +286,5 @@ data%>%
                                                    if_else(treatment=="Immune", "Immune PolyIC", NA))))))%>%
   write_csv("output/baywater_growth.csv")
 ```
+
+
