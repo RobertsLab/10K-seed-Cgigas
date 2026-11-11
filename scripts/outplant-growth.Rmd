@@ -309,10 +309,10 @@ No clear differences in treatment.
 ## Run linear mixed models models 
 
 ```{r}
-model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment * date + (1|purple.tag:treatment), data=data)
+model<-lmer(sqrt(Predicted_Volume_Poly) ~ treatment * date + (1|purple.tag), data=data)
 
 summary(model)
-anova(model)
+anova(model, type=2)
 
 qqPlot(residuals(model))
 hist(residuals(model))
