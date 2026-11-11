@@ -41,15 +41,6 @@ library("readxl")
 
 # Load data 
 
-Read in files to be reformatted. 
-```{r}
-#data<-read_csv("data/outplant/growth.csv")
-  
-#data<-data%>%pivot_wider(names_from="measurement", values_from="value")%>%select(date, tag, oyster, length, width, image, notes)%>%filter(!is.na(length))%>%filter(!is.na(width))
-
-#write_csv(data, file="data/outplant/growth_alt.csv")
-```
-
 Read in data files. 
 ```{r}
 data<-read_csv("data/outplant/outplant-growth.csv")%>%
@@ -70,7 +61,80 @@ data$treatment<-metadata$treatment[match(data$purple.tag, metadata$purple.tag)]
 data$source.bag<-metadata$source.bag[match(data$purple.tag, metadata$purple.tag)]
 ```
 
-# Plot data 
+Load survival data 
+
+```{r}
+surv<-read_csv("data/outplant/outplant-survival.csv")%>%
+  mutate(date=as.factor(date))
+```
+
+# Survival 
+
+Calculate survival. 
+```{r}
+surv<-surv%>%
+  mutate(survival=alive/starting.oysters)
+
+#remove outlier bag with high survival count at one time point
+surv<-surv%>%
+  filter(survival<1)
+```
+
+Plot
+```{r}
+plot<-surv%>%
+
+  ggplot(aes(x=date, y=survival, colour=treatment, fill=treatment))+
+  facet_wrap(~treatment)+
+  geom_boxplot(fill=NA)+
+  geom_point(position=position_jitterdodge(0.1))+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle=45, hjust=1)); plot
+```
+
+Export survival data. 
+```{r}
+surv%>%
+  select(purple.tag, tag.20250820, date, treatment, starting.oysters, alive, survival)%>%
+  write_csv("output/10K_survival.csv")
+```
+
+Export plot
+
+```{r}
+plot<-surv%>%
+  ggplot(aes(x=treatment, y=survival, fill = treatment)) +
+  facet_wrap(~date)+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4), alpha=0.2) +
+  xlab("Treatment") + 
+  theme_classic() +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plot
+
+plota<-surv%>%
+  ggplot(aes(x=date, y=survival, fill = treatment)) +
+  facet_grid(~treatment)+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4), alpha=0.2) +
+  xlab("Treatment") + 
+  theme_classic() +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plota
+
+ggsave(plota, filename="figures/growth/treatment_survival.png", width=6, height=6, units="in")
+```
+
+Run non parametric test. 
+```{r}
+model<-aov(survival ~ treatment*date, data=surv)
+summary(model)
+
+emm<-emmeans(model, ~treatment)
+pairs(emm)
+```
+
+Significant effect of treatment. PolyIC is different than other treatments with lower survival. But we can't separate this from issues with bags and low sample size.   
+
+# Growth 
 
 Plot a histogram of each data column to identify any outliers. 
 ```{r}
@@ -176,7 +240,7 @@ Remove upper outliers.
 
 ```{r}
 data<-data%>%
-  filter(Predicted_Volume_Poly<150000)
+  filter(Predicted_Volume_Poly<300000)
 
 hist(data$Predicted_Volume_Poly)
 ```
@@ -192,7 +256,8 @@ plot4<-data%>%
   geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
   geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
   xlab("Bag") + 
-  theme_classic(); plot4
+  theme_classic()+
+  theme(axis.text.x=element_text(angle=45, hjust=1)); plot4
 
 ggsave(plot4, filename="figures/growth/bag_sizes.png", width=8, height=8, units="in")
 ```
@@ -204,12 +269,39 @@ plot5<-data%>%
   ggplot(aes(x=date, y=Predicted_Volume_Poly, fill = treatment)) +
   facet_wrap(~treatment)+
   geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
-  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4), alpha=0.2) +
   xlab("Treatment") + 
   theme_classic() +
   theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plot5
 
-ggsave(plot5, filename="figures/growth/treatment_sizes.png", width=6, height=6, units="in")
+plot5a<-data%>%
+  ggplot(aes(x=date, y=Predicted_Volume_Poly, fill = treatment, color=treatment)) +
+  facet_wrap(~treatment)+
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4), alpha=0.1) +
+  geom_smooth(method="loess", aes(group=treatment))+
+  xlab("Treatment") + 
+  theme_classic() +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plot5a
+
+plot5b<-data%>%
+  ggplot(aes(x=date, y=Predicted_Volume_Poly, fill = treatment, color=treatment)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4), alpha=0.05) +
+  geom_smooth(method="loess", aes(group=treatment))+
+  xlab("Treatment") + 
+  theme_classic() +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plot5b
+
+plot5c<-data%>%
+  ggplot(aes(x=treatment, y=Predicted_Volume_Poly, fill = treatment)) +
+  facet_wrap(~date)+
+  geom_boxplot(width=.5, outlier.shape= NA, position = position_dodge(width = 0.4)) +
+  geom_point(pch = 21, position=position_jitterdodge(dodge.width=0.4), alpha=0.2) +
+  xlab("Treatment") + 
+  theme_classic() +
+  theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1)); plot5c
+
+ggsave(plot5b, filename="figures/growth/treatment_sizes.png", width=6, height=6, units="in")
+ggsave(plot5c, filename="figures/growth/treatment_sizes_boxplot.png", width=6, height=6, units="in")
 ```
 
 No clear differences in treatment. 
@@ -226,7 +318,7 @@ qqPlot(residuals(model))
 hist(residuals(model))
 ```
 
-No difference by treatment. 
+No difference by treatment, just day. Assumptions look good.  
 
 There might be several outliers. Conduct outlier removal and analyze again.  
 
